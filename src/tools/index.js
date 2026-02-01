@@ -1,4 +1,3 @@
-import { getCurrentTimeTool } from './getCurrentTime.js';
 import { calculateTool } from './calculate.js';
 import { weatherTool } from './weather.js';
 
@@ -13,7 +12,6 @@ function getCoreToolNames() {
 
 export function getTools() {
   const tools = [
-    getCurrentTimeTool,
     calculateTool,
     weatherTool
   ];

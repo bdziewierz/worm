@@ -74,7 +74,7 @@ async function main() {
 
       try {
         await matrixClient.setTyping(message.roomId, true);
-        const response = await agent.processMessage(message.text);
+        const response = await agent.processMessage(message.text, message.sender);
         await matrixClient.sendMessage(response, message.roomId);
         console.log(chalk.green(`✓ Sent response\n`));
       } catch (error) {

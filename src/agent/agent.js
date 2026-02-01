@@ -12,11 +12,17 @@ export class Agent {
     this.toolCaller = new ToolCaller(ollamaClient);
   }
 
-  _buildSystemPrompt() {
+  _buildSystemPrompt(userName = null) {
     const now = new Date().toISOString();
-    return `You are ${this.name}. Personality: ${this.personality} Current time: ${now}
+    let prompt = `You are ${this.name}. Personality: ${this.personality} Current time: ${now}`;
 
-Be concise. Ask for clarification if unclear.`;
+    if (userName) {
+      prompt += `\n\nYou are talking to: ${userName}`;
+    }
+
+    prompt += `\n\nBe concise. Ask for clarification if unclear.`;
+
+    return prompt;
   }
 
   _cleanResponse(text) {
@@ -32,7 +38,7 @@ Be concise. Ask for clarification if unclear.`;
       .trim();
   }
 
-  async processMessage(userMessage) {
+  async processMessage(userMessage, userName = null) {
     // Add user message to history
     this.conversationHistory.push({
       role: 'user',
@@ -45,7 +51,7 @@ Be concise. Ask for clarification if unclear.`;
     }
 
     const messages = [
-      { role: 'system', content: this.systemPrompt },
+      { role: 'system', content: this._buildSystemPrompt(userName) },
       ...this.conversationHistory
     ];
 

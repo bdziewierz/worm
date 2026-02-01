@@ -35,11 +35,12 @@ export class ToolCaller {
       .trim();
   }
 
-  async _requestToolDecision(messages, tools) {
+  async _routeTools(messages, tools) {
+    const startTime = Date.now();
     const toolList = JSON.stringify(this._buildToolList(tools));
-    const systemPrompt = `You are a tool router. Return ONLY JSON with keys: tool_calls (array) and response (string).\n` +
-      `tool_calls items: {"name": "tool_name"}. Do NOT include arguments.\n` +
-      `If no tool is needed, return tool_calls: [] and response with the final answer.\n` +
+    const systemPrompt = `You are a tool router. Decide if tools are needed.\n` +
+      `If tools are needed, return ONLY JSON: {"tool_calls": [{"name": "tool_name"}]}. Do NOT include arguments.\n` +
+      `If no tools needed, don't return JSON, don't mention anything about tools, but return a direct answer to the original prompt as plain text.\n` +
       `Tools: ${toolList}`;
 
     const response = await this.ollama.chat([
@@ -47,19 +48,25 @@ export class ToolCaller {
       ...messages
     ]);
 
+    const duration = Date.now() - startTime;
+    const tokens = response?.prompt_eval_count || 0;
+    console.log(`📊 Step 1: ${tokens} tokens, ${duration}ms`);
+
     const parsed = this._parseJsonObject(response?.message?.content);
     if (!parsed) {
+      // No JSON found, treat as direct answer
       return { tool_calls: [], response: this._cleanResponse(response?.message?.content) };
     }
 
     const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
     return {
       tool_calls: toolCalls,
-      response: typeof parsed.response === 'string' ? parsed.response : ''
+      response: ''
     };
   }
 
-  async _requestToolArgsBatch(messages, tools, userMessage) {
+  async _requestToolArgs(messages, tools, userMessage) {
+    const startTime = Date.now();
     const schemas = tools.map(tool => ({
       name: tool.name,
       description: tool.description,
@@ -76,6 +83,10 @@ export class ToolCaller {
       { role: 'user', content: userMessage }
     ]);
 
+    const duration = Date.now() - startTime;
+    const tokens = response?.prompt_eval_count || 0;
+    console.log(`📊 Step 2: ${tokens} tokens, ${duration}ms`);
+
     const parsed = this._parseJsonObject(response?.message?.content);
     if (!parsed || !Array.isArray(parsed.tool_calls)) {
       return [];
@@ -84,6 +95,7 @@ export class ToolCaller {
   }
 
   async _requestFinalResponse(messages, toolResults) {
+    const startTime = Date.now();
     const systemPrompt = `Use the tool results below to compose a helpful, natural language response to the user's question.`;
 
     const response = await this.ollama.chat([
@@ -92,11 +104,15 @@ export class ToolCaller {
       { role: 'user', content: `Tool results: ${JSON.stringify(toolResults)}` }
     ]);
 
+    const duration = Date.now() - startTime;
+    const tokens = response?.prompt_eval_count || 0;
+    console.log(`📊 Step 3: ${tokens} tokens, ${duration}ms`);
+
     return this._cleanResponse(response?.message?.content || '');
   }
 
   async run(messages, tools) {
-    const decision = await this._requestToolDecision(messages, tools);
+    const decision = await this._routeTools(messages, tools);
 
     if (!decision.tool_calls || decision.tool_calls.length === 0) {
       console.log('🔀 Step 1: No tools selected');
@@ -112,7 +128,7 @@ export class ToolCaller {
     const toolResults = [];
 
     const userMessage = messages[messages.length - 1]?.content || '';
-    const argCalls = await this._requestToolArgsBatch(messages, tools, userMessage);
+    const argCalls = await this._requestToolArgs(messages, tools, userMessage);
     const argMap = new Map(
       argCalls
         .filter(call => call && call.name)
