@@ -55,9 +55,12 @@ export class ToolCaller {
     };
   }
 
-  async _requestToolArgs(messages, tools, userMessage) {
+  async _requestToolArgs(messages, selectedToolNames, tools, userMessage) {
     const startTime = Date.now();
-    const schemas = tools.map(tool => ({
+
+    // Only include schemas for selected tools
+    const selectedTools = tools.filter(tool => selectedToolNames.includes(tool.name));
+    const schemas = selectedTools.map(tool => ({
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters || {}
@@ -121,7 +124,7 @@ export class ToolCaller {
     const toolResults = [];
 
     const userMessage = messages[messages.length - 1]?.content || '';
-    const argCalls = await this._requestToolArgs(messages, tools, userMessage);
+    const argCalls = await this._requestToolArgs(messages, selectedToolNames, tools, userMessage);
     const argMap = new Map(
       argCalls
         .filter(call => call && call.name)
