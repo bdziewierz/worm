@@ -1,9 +1,10 @@
 export class Agent {
-  constructor(ollamaClient, tools = []) {
+  constructor(ollamaClient, tools = [], config = {}) {
     this.ollama = ollamaClient;
     this.tools = tools;
     this.conversationHistory = [];
     this.systemPrompt = this._buildSystemPrompt();
+    this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : 5;
   }
 
   _buildSystemPrompt() {
@@ -96,9 +97,8 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
     });
 
     // Keep conversation history manageable for consumer-grade hardware
-    // Limit: 10 messages for 4K-8K token context window (Gemma 3 27B, Qwen 3 32B @ Q4)
-    if (this.conversationHistory.length > 10) {
-      this.conversationHistory = this.conversationHistory.slice(-10);
+    if (this.conversationHistory.length > this.maxHistory) {
+      this.conversationHistory = this.conversationHistory.slice(-this.maxHistory);
     }
 
     // Select relevant tools based on message content (context optimization)

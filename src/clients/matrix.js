@@ -193,6 +193,14 @@ export class MatrixClient {
     }
   }
 
+  async setTyping(roomId, isTyping = true, timeoutMs = 30000) {
+    try {
+      await this.client.sendTyping(roomId, isTyping, timeoutMs);
+    } catch (error) {
+      console.warn(`Could not set typing state: ${error.message}`);
+    }
+  }
+
   async disconnect() {
     if (this.client) {
       await this.client.stopClient();

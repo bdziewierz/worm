@@ -55,7 +55,9 @@ async function main() {
 
     // Initialize agent with tools
     const tools = getTools();
-    const agent = new Agent(ollamaClient, tools);
+    const agent = new Agent(ollamaClient, tools, {
+      maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5
+    });
     const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
       ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
       : 'Listening in all rooms';
@@ -69,12 +71,15 @@ async function main() {
       console.log(chalk.blue(`\n📨 Received from ${message.sender} in room ${message.roomId}: ${message.text}`));
 
       try {
+        await matrixClient.setTyping(message.roomId, true);
         const response = await agent.processMessage(message.text);
         await matrixClient.sendMessage(response, message.roomId);
         console.log(chalk.green(`✓ Sent response\n`));
       } catch (error) {
         console.error(chalk.red(`❌ Error processing message: ${error.message}`));
         await matrixClient.sendMessage(`Sorry, I encountered an error: ${error.message}`, message.roomId);
+      } finally {
+        await matrixClient.setTyping(message.roomId, false);
       }
     });
 
