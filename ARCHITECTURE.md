@@ -239,9 +239,9 @@ The Intent Classifier is a **critical performance optimization** for consumer-gr
 
 **Design:**
 - Intent classification is **required** for optimal context window usage
-- ONNX model must be downloaded (see INTENT_CLASSIFIER.md)
-- Application fails on startup if model is missing
-- No fallback modes - encourages proper setup
+- ONNX model with DeBERTa-v3-xsmall for zero-shot classification
+- @xenova/transformers for tokenization
+- Application starts normally - will load tokenizer on first classification (~10-20MB download)
 
 ### 5. Tools (`src/tools/*.js`)
 

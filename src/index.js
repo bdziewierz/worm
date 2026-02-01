@@ -2,6 +2,8 @@
 
 import 'dotenv/config';
 import chalk from 'chalk';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { OllamaClient } from './clients/ollama.js';
 import { MatrixClient } from './clients/matrix.js';
 import { Agent } from './agent/agent.js';
@@ -37,7 +39,7 @@ async function main() {
       baseUrl: process.env.OLLAMA_BASE_URL,
       model: process.env.OLLAMA_MODEL
     });
-    
+
     // Test Ollama connection
     await ollamaClient.testConnection();
     console.log(chalk.green('✓ Ollama connected\n'));
@@ -56,7 +58,21 @@ async function main() {
 
     // Initialize intent classifier for smarter tool selection
     console.log(chalk.cyan('🧠 Loading intent classifier...'));
+    const modelsDir = join(process.cwd(), 'models');
+    const modelCandidates = [
+      join(modelsDir, 'deberta-v3-large-zeroshot.onnx'),
+      join(modelsDir, 'deberta-v3-base-zeroshot.onnx'),
+      join(modelsDir, 'deberta-v3-small-zeroshot.onnx'),
+      join(modelsDir, 'deberta-v3-xsmall-zeroshot.onnx')
+    ];
+    const modelPath = process.env.INTENT_MODEL_PATH || modelCandidates.find(candidate => existsSync(candidate));
+    const tokenizerPath = process.env.INTENT_TOKENIZER_PATH || join(modelsDir, 'tokenizer');
+    if (!modelPath) {
+      throw new Error('No DeBERTa ONNX model found in models/. Expected one of: deberta-v3-large-zeroshot.onnx, deberta-v3-base-zeroshot.onnx, deberta-v3-small-zeroshot.onnx, deberta-v3-xsmall-zeroshot.onnx');
+    }
     const intentClassifier = new IntentClassifier({
+      modelPath,
+      tokenizerPath,
       intentThreshold: parseFloat(process.env.INTENT_THRESHOLD) || 0.7,
       toolThreshold: parseFloat(process.env.TOOL_THRESHOLD) || 0.5
     });
@@ -65,10 +81,8 @@ async function main() {
     // Initialize agent with tools and intent classifier
     const tools = getTools();
     const agent = new Agent(ollamaClient, tools, intentClassifier);
-
-    console.log(chalk.green.bold('✓ Assistant is ready!\n'));
-    const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS 
-      ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}` 
+    const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
+      ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
       : 'Listening in all rooms';
     const usersMsg = process.env.MATRIX_ALLOWED_USERS
       ? `Allowed users: ${process.env.MATRIX_ALLOWED_USERS}`
@@ -78,7 +92,7 @@ async function main() {
     // Handle Matrix messages
     matrixClient.onMessage(async (message) => {
       console.log(chalk.blue(`\n📨 Received from ${message.sender} in room ${message.roomId}: ${message.text}`));
-      
+
       try {
         const response = await agent.processMessage(message.text);
         await matrixClient.sendMessage(response, message.roomId);

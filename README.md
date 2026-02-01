@@ -55,8 +55,7 @@ MATRIX_ALLOWED_USERS=
 # Tools Configuration
 CORE_TOOLS=get_current_time,calculate
 
-# Intent Classifier (optional - uses fallback if disabled)
-USE_INTENT_CLASSIFIER=true
+# Intent Classifier Thresholds
 INTENT_THRESHOLD=0.7
 TOOL_THRESHOLD=0.5
 
@@ -109,14 +108,16 @@ The assistant uses intent classification to **preselect relevant tools before se
 - With preselection: Only 2-3 relevant tools loaded (~100-200 tokens)
 - Critical for consumer hardware: Gemma 3 27B limited to 4K-8K effective context due to VRAM constraints
 
-To use the assistant, install the ONNX model:
+**Setup:**
 
 1. Create models directory:
 ```bash
-mkdir models
+mkdir -p models/tokenizer
 ```
 
-2. Download the model following instructions in [INTENT_CLASSIFIER.md](INTENT_CLASSIFIER.md)
+2. Download the ONNX model and tokenizer files following instructions in [INTENT_CLASSIFIER.md](INTENT_CLASSIFIER.md)
+
+   **Note:** All model files must be downloaded manually - the app will not auto-download anything.
 
 ## Running the Assistant
 

@@ -2,13 +2,7 @@
 
 The WORM assistant uses ONNX Runtime with zero-shot classification for intelligent tool selection.
 
-## Quick Start
-
-The system works out of the box with a **fallback mode** using simple heuristics. No model download required for basic functionality.
-
-## Optional: Enable ONNX Model (Better Accuracy)
-
-For improved intent detection and tool selection:
+## Required Setup
 
 ### 1. Download the Model
 
@@ -25,69 +19,81 @@ wget https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall/resolve/main/onn
 # python convert_to_onnx.py
 ```
 
-### 2. Model Placement
+### 2. Download the Tokenizer
 
-Place the model file at:
+```bash
+# Still in models/ directory
+mkdir -p tokenizer
+cd tokenizer
+
+# Download tokenizer files from the same NLI model repo
+wget https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall/resolve/main/tokenizer.json
+wget https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall/resolve/main/tokenizer_config.json
+wget https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall/resolve/main/special_tokens_map.json
+```
+
+### 3. Model Placement
+
+Your directory structure should look like:
 ```
 worm/
 └── models/
-    └── deberta-v3-xsmall-zeroshot.onnx
+    ├── deberta-v3-xsmall-zeroshot.onnx
+    └── tokenizer/
+      ├── tokenizer.json
+      ├── tokenizer_config.json
+      └── special_tokens_map.json
 ```
 
-### 3. Configuration
+### 4. Configuration
 
 In your `.env`:
 ```env
-USE_INTENT_CLASSIFIER=true
 INTENT_THRESHOLD=0.7    # Confidence threshold for tool intent
 TOOL_THRESHOLD=0.5      # Confidence threshold for tool selection
 ```
 
 ## How It Works
 
-### With ONNX Model (100-150ms latency)
+### ONNX Zero-Shot Classification (100-150ms latency)
 1. User sends message
 2. Intent classifier detects if tools are needed (~85-90% accuracy)
 3. If yes, selects relevant tools using zero-shot classification
 4. Only selected tools sent to LLM
 
-### Fallback Mode (instant, ~70-75% accuracy)
-1. User sends message
-2. Simple heuristics detect intent (questions, commands, etc.)
-3. Keyword matching selects tools
-4. Selected tools sent to LLM
-
 ## Performance
 
-| Mode | Latency | Accuracy | Memory |
-|------|---------|----------|--------|
-| ONNX Model | 100-150ms | 85-90% | +250MB RAM |
-| Fallback | <5ms | 70-75% | 0 overhead |
+- **Latency**: 100-150ms per classification
+- **Accuracy**: 85-90% for tool selection
+- **Memory**: +250MB RAM for model
+- **First run**: Model and tokenizer loading (faster after first run)
+- **Subsequent runs**: Cached in memory
 
 ## Troubleshooting
 
 ### Model not loading?
-- Check file path: `models/deberta-v3-xsmall-zeroshot.onnx`
+- Check ONNX model exists: `models/deberta-v3-xsmall-zeroshot.onnx`
 - Verify model format is ONNX (not PyTorch .bin)
-- Check console for error messages
+
+### Tokenizer not loading?
+- Check tokenizer directory exists: `models/tokenizer/`
+- Verify all 3 files are present:
+  - `tokenizer.json`
+  - `tokenizer_config.json`
+  - `special_tokens_map.json`
+- Download from: https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall/tree/main
 
 ### High memory usage?
-- Set `USE_INTENT_CLASSIFIER=false` to disable
-- Uses fallback mode automatically
+- DeBERTa model uses ~250MB RAM
+- Expected behavior for transformer-based classification
 
 ### Slow inference?
-- First inference is slower (model initialization)
-- Subsequent calls are faster (cached)
-- Fallback mode if speed is critical
+- First inference is slower (model + tokenizer initialization)
+- Subsequent calls are faster (cached in memory)
 
-## Disabling Intent Classification
-
-Set in `.env`:
-```env
-USE_INTENT_CLASSIFIER=false
-```
-
-The system will use keyword-based tool selection (fast, good enough for most cases).
+### Slow inference?
+- First inference is slower (model + tokenizer initialization)
+- Subsequent calls are faster (cached in memory)
 
 ## Future Improvements
 
