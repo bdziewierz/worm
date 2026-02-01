@@ -6,7 +6,7 @@ A command-line Node.js application that acts as a personal AI assistant using Ol
 
 - 🤖 **AI Agent System**: Powered by Ollama LLM with tool execution capabilities
 - 💬 **Matrix Chat Integration**: Communicate with your assistant through Matrix
-- 🧠 **Intelligent Tool Selection**: ONNX-based intent classification for accurate tool detection
+- 🧠 **Intelligent Tool Selection**: Keyword-based tool selection for fast routing
 - 🔒 **User Access Control**: Allowlist system to restrict who can use the assistant
 - 🔧 **Extensible Tools**: Easy to add new tools and capabilities
 - 🌐 **Remote Ollama**: Connects to remote Ollama server
@@ -55,10 +55,6 @@ MATRIX_ALLOWED_USERS=
 # Tools Configuration
 CORE_TOOLS=get_current_time,calculate
 
-# Intent Classifier Thresholds
-INTENT_THRESHOLD=0.7
-TOOL_THRESHOLD=0.5
-
 # Assistant Configuration
 ASSISTANT_NAME=WORM Assistant
 ```
@@ -98,26 +94,6 @@ ASSISTANT_NAME=WORM Assistant
 To get your Matrix room ID:
 - In Element, go to Room Settings → Advanced
 - Copy the "Internal Room ID" (starts with `!`)
-
-## ONNX Model Setup (Required)
-
-**Why Intent Classification?**
-
-The assistant uses intent classification to **preselect relevant tools before sending to the LLM**. This dramatically reduces context window usage:
-- Without preselection: ~1000 tokens wasted on irrelevant tool schemas
-- With preselection: Only 2-3 relevant tools loaded (~100-200 tokens)
-- Critical for consumer hardware: Gemma 3 27B limited to 4K-8K effective context due to VRAM constraints
-
-**Setup:**
-
-1. Create models directory:
-```bash
-mkdir -p models/tokenizer
-```
-
-2. Download the ONNX model and tokenizer files following instructions in [INTENT_CLASSIFIER.md](INTENT_CLASSIFIER.md)
-
-   **Note:** All model files must be downloaded manually - the app will not auto-download anything.
 
 ## Running the Assistant
 

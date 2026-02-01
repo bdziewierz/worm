@@ -6,8 +6,7 @@ import { weatherTool } from './weather.js';
 function getCoreToolNames() {
   const coreToolsEnv = process.env.CORE_TOOLS || '';
   if (!coreToolsEnv.trim()) {
-    // Default fallback if not configured
-    return ['get_current_time', 'calculate'];
+    return [];
   }
   return coreToolsEnv.split(',').map(name => name.trim()).filter(name => name.length > 0);
 }

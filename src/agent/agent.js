@@ -1,8 +1,7 @@
 export class Agent {
-  constructor(ollamaClient, tools = [], intentClassifier = null) {
+  constructor(ollamaClient, tools = []) {
     this.ollama = ollamaClient;
     this.tools = tools;
-    this.intentClassifier = intentClassifier;
     this.conversationHistory = [];
     this.systemPrompt = this._buildSystemPrompt();
   }
@@ -24,6 +23,24 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
       description += `- ${tool.name}: ${tool.description}\n`;
     });
     return description;
+  }
+
+  _logSelectedTools(selectedTools) {
+    const names = selectedTools?.length ? selectedTools.map(tool => tool.name).join(', ') : 'none';
+    console.log(`🧰 Tools selected: ${names}`);
+  }
+
+  _cleanResponse(text) {
+    if (!text) return '';
+    return text
+      .replace(/<\|assistant\|>/g, '')
+      .replace(/<\|user\|>/g, '')
+      .replace(/<\|system\|>/g, '')
+      .replace(/<s>/g, '')
+      .replace(/<\/s>/g, '')
+      .replace(/<tool>/g, '')
+      .replace(/<\/tool>/g, '')
+      .trim();
   }
 
   async _selectTools(userMessage) {
@@ -55,33 +72,7 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
       }
     }
 
-    // 2. Use intent classifier if available (100-150ms with ONNX, instant with fallback)
-    if (this.intentClassifier) {
-      // Check if user wants to use tools at all
-      const wantsTools = await this.intentClassifier.detectToolIntent(userMessage);
-
-      if (!wantsTools) {
-        // Just chatting, no tools needed
-        return [];
-      }
-
-      // Select which tools are relevant
-      const selectedTools = await this.intentClassifier.selectTools(userMessage, this.tools);
-
-      // Always include core tools if any tools selected
-      if (selectedTools.length > 0) {
-        const coreTools = this.tools.filter(t => t.core === true);
-        for (const coreTool of coreTools) {
-          if (!selectedTools.includes(coreTool)) {
-            selectedTools.push(coreTool);
-          }
-        }
-      }
-
-      return selectedTools;
-    }
-
-    // 3. Fallback to keyword-based selection (no intent classifier)
+    // 2. Keyword-based selection
     const selectedTools = this.tools.filter(t => t.core === true);
 
     for (const tool of this.tools) {
@@ -113,6 +104,8 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
     // Select relevant tools based on message content (context optimization)
     const selectedTools = await this._selectTools(userMessage);
 
+    this._logSelectedTools(selectedTools);
+
     // Build system prompt with only selected tools
     const systemPromptWithTools = this.systemPrompt + this._buildToolsDescription(selectedTools);
 
@@ -142,7 +135,7 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
       }
 
       // No tool calls, just return the response
-      const assistantMessage = response.message.content;
+      const assistantMessage = this._cleanResponse(response.message.content);
       this.conversationHistory.push({
         role: 'assistant',
         content: assistantMessage
@@ -207,7 +200,7 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
     ];
 
     const finalResponse = await this.ollama.chat(finalMessages);
-    const finalMessage = finalResponse.message.content;
+    const finalMessage = this._cleanResponse(finalResponse.message.content);
 
     this.conversationHistory.push({
       role: 'assistant',

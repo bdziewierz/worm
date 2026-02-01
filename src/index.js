@@ -2,12 +2,9 @@
 
 import 'dotenv/config';
 import chalk from 'chalk';
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { OllamaClient } from './clients/ollama.js';
 import { MatrixClient } from './clients/matrix.js';
 import { Agent } from './agent/agent.js';
-import { IntentClassifier } from './agent/intentClassifier.js';
 import { getTools } from './tools/index.js';
 
 console.log(chalk.blue.bold('\n🤖 Starting WORM Personal Assistant...\n'));
@@ -56,31 +53,9 @@ async function main() {
     await matrixClient.connect();
     console.log(chalk.green('✓ Matrix connected\n'));
 
-    // Initialize intent classifier for smarter tool selection
-    console.log(chalk.cyan('🧠 Loading intent classifier...'));
-    const modelsDir = join(process.cwd(), 'models');
-    const modelCandidates = [
-      join(modelsDir, 'deberta-v3-large-zeroshot.onnx'),
-      join(modelsDir, 'deberta-v3-base-zeroshot.onnx'),
-      join(modelsDir, 'deberta-v3-small-zeroshot.onnx'),
-      join(modelsDir, 'deberta-v3-xsmall-zeroshot.onnx')
-    ];
-    const modelPath = process.env.INTENT_MODEL_PATH || modelCandidates.find(candidate => existsSync(candidate));
-    const tokenizerPath = process.env.INTENT_TOKENIZER_PATH || join(modelsDir, 'tokenizer');
-    if (!modelPath) {
-      throw new Error('No DeBERTa ONNX model found in models/. Expected one of: deberta-v3-large-zeroshot.onnx, deberta-v3-base-zeroshot.onnx, deberta-v3-small-zeroshot.onnx, deberta-v3-xsmall-zeroshot.onnx');
-    }
-    const intentClassifier = new IntentClassifier({
-      modelPath,
-      tokenizerPath,
-      intentThreshold: parseFloat(process.env.INTENT_THRESHOLD) || 0.7,
-      toolThreshold: parseFloat(process.env.TOOL_THRESHOLD) || 0.5
-    });
-    await intentClassifier.load();
-
-    // Initialize agent with tools and intent classifier
+    // Initialize agent with tools
     const tools = getTools();
-    const agent = new Agent(ollamaClient, tools, intentClassifier);
+    const agent = new Agent(ollamaClient, tools);
     const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
       ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
       : 'Listening in all rooms';
