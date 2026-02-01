@@ -11,12 +11,12 @@ export class OllamaClient {
     try {
       const response = await this.client.list();
       const modelExists = response.models.some(m => m.name.includes(this.model));
-      
+
       if (!modelExists) {
-        console.warn(`⚠️  Model ${this.model} not found. Available models:`, 
+        console.warn(`⚠️  Model ${this.model} not found. Available models:`,
           response.models.map(m => m.name).join(', '));
       }
-      
+
       return true;
     } catch (error) {
       throw new Error(`Failed to connect to Ollama at ${this.baseUrl}: ${error.message}`);
