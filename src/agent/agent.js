@@ -3,6 +3,8 @@ export class Agent {
     this.ollama = ollamaClient;
     this.tools = tools;
     this.conversationHistory = [];
+    this.name = config.name || 'WORM Assistant';
+    this.personality = config.personality || 'Helpful, concise, and direct.';
     this.systemPrompt = this._buildSystemPrompt();
     this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : 5;
   }
@@ -11,7 +13,7 @@ export class Agent {
     // Optimized for consumer-grade hardware (Gemma 3 27B, Qwen 3 32B)
     // Target: <500 tokens for system + tools. Keep concise for 4K-8K context window.
     const now = new Date().toISOString();
-    return `You are a helpful personal assistant. Current time: ${now}
+    return `You are ${this.name}. Personality: ${this.personality} Current time: ${now}
 
 Be concise. Use tools when needed. Ask for clarification if unclear.`;
   }
@@ -135,13 +137,16 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
       }
 
       // No tool calls, just return the response
-      const assistantMessage = this._cleanResponse(response.message.content);
+      const assistantMessage = this._cleanResponse(response?.message?.content);
+      if (!assistantMessage) {
+        console.warn('⚠️ Empty assistant response after cleaning. Raw response:', JSON.stringify(response?.message || response));
+      }
       this.conversationHistory.push({
         role: 'assistant',
-        content: assistantMessage
+        content: assistantMessage || "I'm here. Please try again."
       });
 
-      return assistantMessage;
+      return assistantMessage || "I'm here. Please try again.";
 
     } catch (error) {
       console.error('Error processing message:', error);
@@ -200,14 +205,17 @@ Be concise. Use tools when needed. Ask for clarification if unclear.`;
     ];
 
     const finalResponse = await this.ollama.chat(finalMessages);
-    const finalMessage = this._cleanResponse(finalResponse.message.content);
+    const finalMessage = this._cleanResponse(finalResponse?.message?.content);
+    if (!finalMessage) {
+      console.warn('⚠️ Empty assistant response after tool calls. Raw response:', JSON.stringify(finalResponse?.message || finalResponse));
+    }
 
     this.conversationHistory.push({
       role: 'assistant',
-      content: finalMessage
+      content: finalMessage || "I'm here. Please try again."
     });
 
-    return finalMessage;
+    return finalMessage || "I'm here. Please try again.";
   }
 
   clearHistory() {

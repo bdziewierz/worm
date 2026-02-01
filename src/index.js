@@ -56,7 +56,9 @@ async function main() {
     // Initialize agent with tools
     const tools = getTools();
     const agent = new Agent(ollamaClient, tools, {
-      maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5
+      maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5,
+      name: process.env.NAME,
+      personality: process.env.PERSONALITY
     });
     const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
       ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
