@@ -1,3 +1,5 @@
+import { responseSanitiser } from './responseSanitiser.js';
+
 export class ToolCaller {
   constructor(ollamaClient) {
     this.ollama = ollamaClient;
@@ -22,26 +24,13 @@ export class ToolCaller {
     }
   }
 
-  _cleanResponse(text) {
-    if (!text) return '';
-    return text
-      .replace(/<\|assistant\|>/g, '')
-      .replace(/<\|user\|>/g, '')
-      .replace(/<\|system\|>/g, '')
-      .replace(/<s>/g, '')
-      .replace(/<\/s>/g, '')
-      .replace(/<tool>/g, '')
-      .replace(/<\/tool>/g, '')
-      .trim();
-  }
-
   async _routeTools(messages, tools) {
     const startTime = Date.now();
     const toolList = JSON.stringify(this._buildToolList(tools));
-    const systemPrompt = `You are a tool router. Decide if tools are needed.\n` +
-      `If tools are needed, return ONLY JSON: {"tool_calls": [{"name": "tool_name"}]}. Do NOT include arguments.\n` +
-      `If no tools needed, don't return JSON, don't mention anything about tools, but return a direct answer to the original prompt as plain text.\n` +
-      `Tools: ${toolList}`;
+    const systemPrompt = `Available tools: ${toolList}\n\n` +
+      `Task: Determine if any tools are needed to answer the user's request.\n` +
+      `If tools needed: Output {"tool_calls": [{"name": "tool_name"}]}\n` +
+      `If no tools needed: Answer directly in plain text.`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
@@ -49,13 +38,14 @@ export class ToolCaller {
     ]);
 
     const duration = Date.now() - startTime;
-    const tokens = response?.prompt_eval_count || 0;
-    console.log(`📊 Step 1: ${tokens} tokens, ${duration}ms`);
+    const inputTokens = response?.prompt_eval_count || 0;
+    const outputTokens = response?.eval_count || 0;
+    console.log(`📊 Step 1: ${inputTokens} in, ${outputTokens} out, ${duration}ms`);
 
     const parsed = this._parseJsonObject(response?.message?.content);
     if (!parsed) {
       // No JSON found, treat as direct answer
-      return { tool_calls: [], response: this._cleanResponse(response?.message?.content) };
+      return { tool_calls: [], response: responseSanitiser(response?.message?.content) };
     }
 
     const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
@@ -73,9 +63,9 @@ export class ToolCaller {
       parameters: tool.parameters || {}
     }));
 
-    const systemPrompt = `Return ONLY JSON with key: tool_calls (array).\n` +
-      `Each item: {"name": "tool_name", "arguments": {}}.\n` +
-      `Use only tools from this list: ${JSON.stringify(schemas)}.`;
+    const systemPrompt = `Tools with parameters: ${JSON.stringify(schemas)}\n\n` +
+      `Task: Extract arguments for each tool from the conversation.\n` +
+      `Output: {"tool_calls": [{"name": "tool_name", "arguments": {...}}]}`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
@@ -84,8 +74,9 @@ export class ToolCaller {
     ]);
 
     const duration = Date.now() - startTime;
-    const tokens = response?.prompt_eval_count || 0;
-    console.log(`📊 Step 2: ${tokens} tokens, ${duration}ms`);
+    const inputTokens = response?.prompt_eval_count || 0;
+    const outputTokens = response?.eval_count || 0;
+    console.log(`📊 Step 2: ${inputTokens} in, ${outputTokens} out, ${duration}ms`);
 
     const parsed = this._parseJsonObject(response?.message?.content);
     if (!parsed || !Array.isArray(parsed.tool_calls)) {
@@ -96,7 +87,8 @@ export class ToolCaller {
 
   async _requestFinalResponse(messages, toolResults) {
     const startTime = Date.now();
-    const systemPrompt = `Use the tool results below to compose a helpful, natural language response to the user's question.`;
+    const systemPrompt = `Tool execution results: ${JSON.stringify(toolResults)}\n\n` +
+      `Task: Use the results above to answer the user's question.`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
@@ -105,10 +97,11 @@ export class ToolCaller {
     ]);
 
     const duration = Date.now() - startTime;
-    const tokens = response?.prompt_eval_count || 0;
-    console.log(`📊 Step 3: ${tokens} tokens, ${duration}ms`);
+    const inputTokens = response?.prompt_eval_count || 0;
+    const outputTokens = response?.eval_count || 0;
+    console.log(`📊 Step 3: ${inputTokens} in, ${outputTokens} out, ${duration}ms`);
 
-    return this._cleanResponse(response?.message?.content || '');
+    return responseSanitiser(response?.message?.content || '');
   }
 
   async run(messages, tools) {
@@ -116,7 +109,7 @@ export class ToolCaller {
 
     if (!decision.tool_calls || decision.tool_calls.length === 0) {
       console.log('🔀 Step 1: No tools selected');
-      return this._cleanResponse(decision.response);
+      return responseSanitiser(decision.response);
     }
 
     const selectedToolNames = decision.tool_calls.map(call =>
@@ -158,6 +151,6 @@ export class ToolCaller {
 
     console.log('💬 Step 3: Generating final response...');
     const finalText = await this._requestFinalResponse(messages, toolResults);
-    return this._cleanResponse(finalText);
+    return finalText;
   }
 }

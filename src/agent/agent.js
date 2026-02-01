@@ -1,4 +1,5 @@
 import { ToolCaller } from '../lib/toolCaller.js';
+import { responseSanitiser } from '../lib/responseSanitiser.js';
 
 export class Agent {
   constructor(ollamaClient, tools = [], config = {}) {
@@ -25,19 +26,6 @@ export class Agent {
     return prompt;
   }
 
-  _cleanResponse(text) {
-    if (!text) return '';
-    return text
-      .replace(/<\|assistant\|>/g, '')
-      .replace(/<\|user\|>/g, '')
-      .replace(/<\|system\|>/g, '')
-      .replace(/<s>/g, '')
-      .replace(/<\/s>/g, '')
-      .replace(/<tool>/g, '')
-      .replace(/<\/tool>/g, '')
-      .trim();
-  }
-
   async processMessage(userMessage, userName = null) {
     // Add user message to history
     this.conversationHistory.push({
@@ -56,29 +44,26 @@ export class Agent {
     ];
 
     try {
+      let assistantMessage;
+
       if (this.tools.length > 0) {
-        const assistantMessage = await this.toolCaller.run(messages, this.tools);
-        if (!assistantMessage) {
-          console.warn('⚠️ Empty assistant response after tool flow.');
-        }
-        this.conversationHistory.push({
-          role: 'assistant',
-          content: assistantMessage || "I'm here. Please try again."
-        });
-        return assistantMessage || "I'm here. Please try again.";
+        assistantMessage = await this.toolCaller.run(messages, this.tools);
+      } else {
+        const response = await this.ollama.chat(messages);
+        assistantMessage = responseSanitiser(response?.message?.content);
       }
 
-      const response = await this.ollama.chat(messages);
-      const assistantMessage = this._cleanResponse(response?.message?.content);
       if (!assistantMessage) {
-        console.warn('⚠️ Empty assistant response after cleaning. Raw response:', JSON.stringify(response?.message || response));
+        console.warn('⚠️ Empty response from LLM');
+        assistantMessage = "I apologize, but I forgot what I wanted to say. This might be a temporary issue. Could you please ask your question again?";
       }
+
       this.conversationHistory.push({
         role: 'assistant',
-        content: assistantMessage || "I'm here. Please try again."
+        content: assistantMessage
       });
 
-      return assistantMessage || "I'm here. Please try again.";
+      return assistantMessage;
 
     } catch (error) {
       console.error('Error processing message:', error);
