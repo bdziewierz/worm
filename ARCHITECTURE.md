@@ -110,11 +110,13 @@ worm/
 │   ├── index.js              # Application entry point
 │   ├── agent/
 │   │   └── agent.js          # Agent orchestration logic
+│   ├── lib/
+│   │   └── toolCaller.js     # Custom 3-stage tool calling system
 │   ├── clients/              # Self-contained client modules (no index.js)
 │   │   ├── ollama.js         # Ollama LLM client wrapper
 │   │   └── matrix.js         # Matrix chat client wrapper
 │   └── tools/                # Self-contained tool modules
-│       ├── index.js          # Tool registry (imports + core status only)
+│       ├── index.js          # Tool registry
 │       └── *.js              # Individual tool implementations
 ├── .env.example              # Environment configuration template
 ├── .env                      # Local configuration (gitignored)
@@ -129,29 +131,35 @@ worm/
 
 **Responsibilities:**
 - Manage conversation history
-- Coordinate LLM interactions
-- Execute tool calls requested by the LLM
-- Format responses for users
+- Build system prompts with user context
+- Delegate to ToolCaller for tool-based interactions
+- Handle direct LLM chat when no tools registered
 
 **Key Design Decisions:**
-- Maintains conversation history (last 10 messages) for context
+- Maintains conversation history (configurable via MAX_HISTORY, default 5) for context
   - **Rationale**: Limit kept low for consumer-grade hardware (4K-8K effective context)
   - Prevents context overflow on Gemma 3 27B / Qwen 3 32B at Q4 quantization
   - Hardware (VRAM) limits KV cache, not model architecture
-- System prompt is generated once at initialization
+- System prompt is generated per-message with current timestamp and sender info
   - **Constraint**: Must be concise to preserve context for conversation
-  - Target: <500 tokens for system prompt + tool schemas
-- Tool results are added to conversation history before final response
-  - **Note**: Large tool outputs consume context - keep results compact (<200 tokens each)
-- Supports multi-turn tool execution (tool calls can trigger more tool calls)
-  - **Warning**: Deep tool chains can exhaust 4K-8K context window quickly
+  - Includes: agent name, personality, current time, sender's Matrix user ID
+- ToolCaller handles all tool execution internally (3-stage flow)
+  - Agent just passes messages and tools, receives final response
+  - No tool result management needed in Agent
 
 **Conversation Flow:**
 1. User message → Add to history
-2. Send to Ollama with available tools
-3. If tool calls requested → Execute tools → Send results back to Ollama
-4. Return final response
+2. Build system prompt with user context (name, personality, timestamp, sender)
+3. If tools registered → Delegate to ToolCaller (3-stage flow)
+4. If no tools → Direct ollama.chat() call
 5. Add assistant response to history
+6. Return response to user
+
+**ToolCaller Integration:**
+- Agent passes messages + tools to ToolCaller.run()
+- ToolCaller handles stages 1-3 internally
+- Agent receives final text response
+- System prompt is included in messages array for all stages
 
 ### 2. Ollama Client (`src/clients/ollama.js`)
 

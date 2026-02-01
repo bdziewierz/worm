@@ -4,13 +4,14 @@ A command-line Node.js application that acts as a personal AI assistant using Ol
 
 ## Features
 
-- 🤖 **AI Agent System**: Powered by Ollama LLM with tool execution capabilities
+- 🤖 **AI Agent System**: Powered by Ollama LLM with custom 3-stage tool calling
 - 💬 **Matrix Chat Integration**: Communicate with your assistant through Matrix
-- 🧠 **Intelligent Tool Selection**: Keyword-based tool selection for fast routing
+- 🧠 **Intelligent Tool Routing**: LLM-based tool selection with efficient context usage
 - 🔒 **User Access Control**: Allowlist system to restrict who can use the assistant
 - 🔧 **Extensible Tools**: Easy to add new tools and capabilities
 - 🌐 **Remote Ollama**: Connects to remote Ollama server
 - ⚡ **Modern Node.js**: Uses ESM modules and latest Node.js features (v20+)
+- 📊 **Performance Monitoring**: Token usage and timing metrics for each stage
 
 ## Prerequisites
 
@@ -52,11 +53,10 @@ MATRIX_ROOM_ID=!your_room_id:matrix.org
 # Example: @user1:matrix.org,@user2:matrix.org
 MATRIX_ALLOWED_USERS=
 
-# Tools Configuration
-CORE_TOOLS=get_current_time,calculate
-
 # Assistant Configuration
-ASSISTANT_NAME=WORM Assistant
+NAME=WORM
+PERSONALITY=Helpful, concise, and direct.
+MAX_HISTORY=5
 ```
 
 ## Getting Matrix Access Token
@@ -167,13 +167,14 @@ worm/
 ├── src/
 │   ├── index.js              # Main entry point
 │   ├── agent/
-│   │   └── agent.js          # Agent logic with tool execution
+│   │   └── agent.js          # Agent logic with conversation management
+│   ├── lib/
+│   │   └── toolCaller.js     # Custom 3-stage tool calling system
 │   ├── clients/
 │   │   ├── ollama.js         # Ollama LLM client
 │   │   └── matrix.js         # Matrix chat client
 │   └── tools/
 │       ├── index.js          # Tool registry
-│       ├── getCurrentTime.js # Time tool
 │       ├── calculate.js      # Calculator tool
 │       └── weather.js        # Weather tool (mock)
 ├── package.json

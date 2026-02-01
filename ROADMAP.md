@@ -5,12 +5,13 @@ This document outlines planned features and improvements for the WORM personal a
 ## Current Status
 
 ✅ **Core Features Complete:**
-- Ollama LLM integration with tool execution
+- Ollama LLM integration with custom 3-stage tool calling
 - Matrix chat client with message handling
 - Security (user and room allowlists)
-- Intent classification for intelligent tool selection
-- Basic tools (time, calculator, weather)
+- LLM-based tool routing with token optimization
+- Basic tools (calculator, weather)
 - Consumer hardware optimization (4K-8K context)
+- Performance monitoring (token counts, timing per stage)
 
 ## High Priority
 
@@ -46,10 +47,11 @@ This document outlines planned features and improvements for the WORM personal a
 - Currency/crypto price lookups
 - Reminder/scheduling system with persistence
 
-### ONNX Model Integration
-- Download and configure DeBERTa-v3-xsmall model
-- Implement full ONNX inference pipeline
-- Benchmark accuracy improvements (target: 85-90%)
+### Tool Calling Improvements
+- Retry logic for malformed JSON responses
+- Parallel tool execution when tools are independent
+- Tool result caching for repeated calls
+- Streaming support for long-running tools
 
 ### Conversation Management
 - Conversation summarization for long threads
