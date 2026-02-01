@@ -91,7 +91,8 @@ export class ToolCaller {
   async _requestFinalResponse(messages, toolResults) {
     const startTime = Date.now();
     const systemPrompt = `Tool execution results: ${JSON.stringify(toolResults)}\n\n` +
-      `Task: Use the results above to answer the user's question.`;
+      `Task: Answer the user's question using ONLY the results above.\n` +
+      `Rules: Do NOT call any tools. Do NOT output JSON. Write a natural, conversational response.`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
