@@ -1,6 +1,8 @@
 export const calculateTool = {
   name: 'calculate',
   description: 'Evaluate math expressions (arithmetic, sqrt, sin, cos, tan, abs)',
+  category: 'math',
+  keywords: ['calculate', 'math', 'compute', 'multiply', 'divide', 'add', 'subtract'],
   parameters: {
     type: 'object',
     properties: {

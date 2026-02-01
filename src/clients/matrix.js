@@ -6,13 +6,23 @@ export class MatrixClient {
     this.client = null;
     this.messageHandlers = [];
     this.allowedUsers = this._parseAllowedUsers(config.allowedUsers);
+    this.allowedRooms = this._parseAllowedRooms(config.allowedRooms);
   }
 
   _parseAllowedUsers(allowedUsersStr) {
     if (!allowedUsersStr || allowedUsersStr.trim() === '') {
       return null; // null means allow all users
     }
-    return allowedUsersStr.split(',').map(u => u.trim()).filter(u => u.length > 0);
+    const users = allowedUsersStr.split(',').map(u => u.trim()).filter(u => u.length > 0);
+    return users.length > 0 ? users : null; // Return null if empty after filtering
+  }
+
+  _parseAllowedRooms(allowedRoomsStr) {
+    if (!allowedRoomsStr || allowedRoomsStr.trim() === '') {
+      return null; // null means allow all rooms
+    }
+    const rooms = allowedRoomsStr.split(',').map(r => r.trim()).filter(r => r.length > 0);
+    return rooms.length > 0 ? rooms : null; // Return null if empty after filtering
   }
 
   _isUserAllowed(userId) {
@@ -22,6 +32,15 @@ export class MatrixClient {
     }
     // Check if user is in the allowlist
     return this.allowedUsers.includes(userId);
+  }
+
+  _isRoomAllowed(roomId) {
+    // If no allowlist is configured, allow all rooms
+    if (this.allowedRooms === null) {
+      return true;
+    }
+    // Check if room is in the allowlist
+    return this.allowedRooms.includes(roomId);
   }
 
   async connect() {
@@ -49,9 +68,45 @@ export class MatrixClient {
         });
       });
 
-      // Set up message listener
+      // Set presence to online
+      try {
+        await this.client.setPresence({ presence: 'online' });
+      } catch (error) {
+        console.warn('Could not set presence:', error.message);
+      }
+
+      // Set up message listener - try both event names for compatibility
       this.client.on('Room.timeline', (event, room) => {
+        console.log('⚡ Room.timeline event fired');
         this._handleTimelineEvent(event, room);
+      });
+
+      this.client.on('event', (event) => {
+        if (event.getType() === 'm.room.message') {
+          console.log('⚡ Generic event fired for message');
+        }
+      });
+
+      // Auto-accept room invitations
+      this.client.on('RoomMember.membership', async (event, member) => {
+        if (member.membership === 'invite' && member.userId === this.config.userId) {
+          const roomId = member.roomId;
+          
+          // Check if room is in allowlist (if configured)
+          if (!this._isRoomAllowed(roomId)) {
+            console.log(`   Allowed rooms: ${this.allowedRooms ? this.allowedRooms.join(', ') : 'all'}`);
+            console.log(`🚫 Declined invite to non-allowed room: ${roomId}`);
+            await this.client.leave(roomId);
+            return;
+          }
+          
+          try {
+            await this.client.joinRoom(roomId);
+            console.log(`✓ Joined room: ${roomId}`);
+          } catch (error) {
+            console.error(`Failed to join room ${roomId}:`, error.message);
+          }
+        }
       });
 
       return true;
@@ -61,20 +116,41 @@ export class MatrixClient {
   }
 
   _handleTimelineEvent(event, room) {
-    // Only process messages from the configured room
-    if (room.roomId !== this.config.roomId) return;
+    const eventType = event.getType();
+    const sender = event.getSender();
+    const roomId = room.roomId;
+    
+    console.log(`🔍 Event: type=${eventType}, sender=${sender}, room=${roomId}`);
 
     // Only process text messages
-    if (event.getType() !== 'm.room.message') return;
+    if (eventType !== 'm.room.message') {
+      console.log(`   ↳ Skipped: Not a message event`);
+      return;
+    }
     
     const content = event.getContent();
-    if (content.msgtype !== 'm.text') return;
+    console.log(`   ↳ msgtype=${content.msgtype}, body="${content.body}"`);
+    
+    if (content.msgtype !== 'm.text') {
+      console.log(`   ↳ Skipped: Not a text message`);
+      return;
+    }
 
     // Ignore our own messages
-    if (event.getSender() === this.config.userId) return;
+    if (sender === this.config.userId) {
+      console.log(`   ↳ Skipped: Own message`);
+      return;
+    }
+
+    console.log(`\n📨 Message from ${sender} in ${roomId}`);
+
+    // Check if room is allowed
+    if (!this._isRoomAllowed(roomId)) {
+      console.log(`🚫 Ignored: Room not in allowlist`);
+      return; // Silently ignore messages from non-allowed rooms
+    }
 
     // Check if user is allowed
-    const sender = event.getSender();
     if (!this._isUserAllowed(sender)) {
       console.log(`🚫 Rejected message from unauthorized user: ${sender}`);
       return;
@@ -82,13 +158,17 @@ export class MatrixClient {
 
     // Ignore old messages (only process new messages)
     const age = Date.now() - event.getTs();
-    if (age > 5000) return; // Ignore messages older than 5 seconds
+    if (age > 5000) {
+      console.log(`⏭️  Ignored: Message too old (${Math.round(age/1000)}s)`);
+      return; // Ignore messages older than 5 seconds
+    }
 
     const message = {
       text: content.body,
       sender: event.getSender(),
       timestamp: event.getTs(),
-      eventId: event.getId()
+      eventId: event.getId(),
+      roomId: room.roomId
     };
 
     // Call all registered handlers
@@ -105,9 +185,9 @@ export class MatrixClient {
     this.messageHandlers.push(handler);
   }
 
-  async sendMessage(text) {
+  async sendMessage(text, roomId) {
     try {
-      await this.client.sendTextMessage(this.config.roomId, text);
+      await this.client.sendTextMessage(roomId, text);
     } catch (error) {
       throw new Error(`Failed to send message: ${error.message}`);
     }

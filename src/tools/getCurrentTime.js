@@ -1,6 +1,8 @@
 export const getCurrentTimeTool = {
   name: 'get_current_time',
   description: 'Get current date/time with optional timezone',
+  category: 'time',
+  keywords: ['time', 'date', 'clock', 'when'],
   parameters: {
     type: 'object',
     properties: {

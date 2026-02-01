@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { OllamaClient } from './clients/ollama.js';
 import { MatrixClient } from './clients/matrix.js';
 import { Agent } from './agent/agent.js';
+import { IntentClassifier } from './agent/intentClassifier.js';
 import { getTools } from './tools/index.js';
 
 console.log(chalk.blue.bold('\n🤖 Starting WORM Personal Assistant...\n'));
@@ -15,8 +16,7 @@ const requiredEnvVars = [
   'OLLAMA_MODEL',
   'MATRIX_HOMESERVER',
   'MATRIX_USER_ID',
-  'MATRIX_ACCESS_TOKEN',
-  'MATRIX_ROOM_ID'
+  'MATRIX_ACCESS_TOKEN'
 ];
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -47,31 +47,45 @@ async function main() {
       homeserver: process.env.MATRIX_HOMESERVER,
       userId: process.env.MATRIX_USER_ID,
       accessToken: process.env.MATRIX_ACCESS_TOKEN,
-      roomId: process.env.MATRIX_ROOM_ID,
-      allowedUsers: process.env.MATRIX_ALLOWED_USERS
+      allowedUsers: process.env.MATRIX_ALLOWED_USERS,
+      allowedRooms: process.env.MATRIX_ALLOWED_ROOMS
     });
 
     await matrixClient.connect();
     console.log(chalk.green('✓ Matrix connected\n'));
 
-    // Initialize agent with tools
+    // Initialize intent classifier for smarter tool selection
+    console.log(chalk.cyan('🧠 Loading intent classifier...'));
+    const intentClassifier = new IntentClassifier({
+      intentThreshold: parseFloat(process.env.INTENT_THRESHOLD) || 0.7,
+      toolThreshold: parseFloat(process.env.TOOL_THRESHOLD) || 0.5
+    });
+    await intentClassifier.load();
+
+    // Initialize agent with tools and intent classifier
     const tools = getTools();
-    const agent = new Agent(ollamaClient, tools);
+    const agent = new Agent(ollamaClient, tools, intentClassifier);
 
     console.log(chalk.green.bold('✓ Assistant is ready!\n'));
-    console.log(chalk.gray(`Listening for messages in room: ${process.env.MATRIX_ROOM_ID}\n`));
+    const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS 
+      ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}` 
+      : 'Listening in all rooms';
+    const usersMsg = process.env.MATRIX_ALLOWED_USERS
+      ? `Allowed users: ${process.env.MATRIX_ALLOWED_USERS}`
+      : 'Allowing all users';
+    console.log(chalk.gray(`${roomsMsg}\n${usersMsg}\n`));
 
     // Handle Matrix messages
     matrixClient.onMessage(async (message) => {
-      console.log(chalk.blue(`\n📨 Received: ${message.text}`));
+      console.log(chalk.blue(`\n📨 Received from ${message.sender} in room ${message.roomId}: ${message.text}`));
       
       try {
         const response = await agent.processMessage(message.text);
-        await matrixClient.sendMessage(response);
+        await matrixClient.sendMessage(response, message.roomId);
         console.log(chalk.green(`✓ Sent response\n`));
       } catch (error) {
         console.error(chalk.red(`❌ Error processing message: ${error.message}`));
-        await matrixClient.sendMessage(`Sorry, I encountered an error: ${error.message}`);
+        await matrixClient.sendMessage(`Sorry, I encountered an error: ${error.message}`, message.roomId);
       }
     });
 

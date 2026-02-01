@@ -50,6 +50,24 @@ The application is divided into distinct layers:
 - Handler pattern for message processing
 - Non-blocking asynchronous operations throughout
 
+### 5. **Component Decoupling and Self-Containment** ⚠️ IMPORTANT
+
+**Tools:**
+- Each tool is **completely self-contained** in its own file
+- Tool metadata (name, description, category, keywords, parameters, execute) lives with the tool
+- **No centralized metadata** - avoid coupling tools through shared configuration files
+- `tools/index.js` only imports and registers tools, does not define tool behavior
+- Only runtime configuration (core status) comes from environment (.env)
+- **Principle**: Tools should be copy-pasteable between projects without dependencies
+
+**Clients:**
+- Each client is **completely self-contained** in its own file
+- Client classes handle their own connection logic, state management, and API surface
+- **No clients/index.js registry** - clients are imported directly where needed
+- Configuration passed via constructor (dependency injection pattern)
+- No shared client configuration or base classes
+- **Principle**: Clients are independent modules, add/remove without affecting others
+
 ## Technology Stack
 
 ### Core Technologies
@@ -92,11 +110,11 @@ worm/
 │   ├── index.js              # Application entry point
 │   ├── agent/
 │   │   └── agent.js          # Agent orchestration logic
-│   ├── clients/
+│   ├── clients/              # Self-contained client modules (no index.js)
 │   │   ├── ollama.js         # Ollama LLM client wrapper
 │   │   └── matrix.js         # Matrix chat client wrapper
-│   └── tools/
-│       ├── index.js          # Tool registry
+│   └── tools/                # Self-contained tool modules
+│       ├── index.js          # Tool registry (imports + core status only)
 │       └── *.js              # Individual tool implementations
 ├── .env.example              # Environment configuration template
 ├── .env                      # Local configuration (gitignored)
@@ -182,7 +200,50 @@ worm/
 5. Timestamp check (ignore old messages)
 6. Forward to registered handlers
 
-### 4. Tools (`src/tools/*.js`)
+### 4. Intent Classifier (`src/agent/intentClassifier.js`)
+
+**Purpose:**
+
+The Intent Classifier is a **critical performance optimization** for consumer-grade hardware:
+
+**Problem:** Sending all tool schemas to the LLM wastes ~1000 tokens per request:
+- 20 tools × 50 tokens each = 1000 tokens consumed
+- With 4K-8K effective context, this leaves only 3K-7K for conversation history
+- LLM must parse irrelevant tools on every request (processing overhead)
+
+**Solution:** Preselect 2-3 relevant tools using intent classification:
+- Reduces tool schemas to ~100-200 tokens (80-90% savings)
+- LLM only sees tools relevant to user's intent
+- Frees context window for longer conversation history
+
+**Three-Tier Selection Strategy:**
+1. **Explicit Prefixes** (instant, 100% accuracy)
+   - `CALC: 25 * 4` → instantly loads calculate tool
+   - `WEATHER: London` → instantly loads weather tool
+   - No classification needed, zero latency
+
+2. **Intent Classification** (100-150ms, 85-90% accuracy)
+   - Zero-shot classification using DeBERTa-v3-xsmall ONNX model
+   - Semantic understanding of user intent
+   - Requires ONNX model download (see INTENT_CLASSIFIER.md)
+
+3. **Keyword Fallback** (instant)
+   - Used if intent classification fails or returns no matches
+   - Matches keywords in tool definitions
+   - Last resort to ensure tool availability
+
+**Configuration:**
+- `INTENT_THRESHOLD=0.7` - Confidence threshold for tool intent detection
+- `TOOL_THRESHOLD=0.5` - Confidence threshold for individual tool selection
+- `CORE_TOOLS=tool1,tool2` - Always-loaded tools (bypass classification)
+
+**Design:**
+- Intent classification is **required** for optimal context window usage
+- ONNX model must be downloaded (see INTENT_CLASSIFIER.md)
+- Application fails on startup if model is missing
+- No fallback modes - encourages proper setup
+
+### 5. Tools (`src/tools/*.js`)
 
 **Tool Structure:**
 Each tool must export an object with:
@@ -190,6 +251,8 @@ Each tool must export an object with:
 {
   name: string,           // Unique identifier
   description: string,    // What the tool does (LLM sees this)
+  category: string,       // Category for prefix matching (e.g., 'time', 'math', 'weather')
+  keywords: string[],     // Keywords for automatic detection (e.g., ['time', 'clock'])
   parameters: object,     // JSON Schema for arguments
   execute: async (args) => result  // Implementation
 }
@@ -200,6 +263,8 @@ Each tool must export an object with:
 - Tools must handle their own errors and return error objects
 - Tool results should be JSON-serializable
 - Tools are stateless (no internal state between calls)
+- **Tools are self-contained** - all metadata defined in the tool file itself
+- Only `core` status is enriched at runtime from environment configuration
 
 **Current Tools:**
 - `get_current_time` - Date/time with timezone support
@@ -207,10 +272,90 @@ Each tool must export an object with:
 - `get_weather` - Mock weather tool (placeholder for real API)
 
 **Adding New Tools:**
-1. Create tool file in `src/tools/`
-2. Export tool object with required structure
-3. Import and add to array in `src/tools/index.js`
-4. Tool is automatically available to agent
+1. Create tool file in `src/tools/` with complete definition (name, description, category, keywords, parameters, execute)
+2. Import tool in `src/tools/index.js` and add to array
+3. Optionally add to `CORE_TOOLS` in `.env` if it should always load
+4. Tool is automatically available to agent with selective loading support
+
+### New Tool Ideas
+
+Tools that fit consumer-grade hardware constraints (compact outputs, stateless, <200 token results):
+
+**Time & Scheduling**
+- `set_reminder` - Create time-based reminders (store in SQLite, return confirmation)
+- `list_reminders` - Show upcoming reminders (return compact list)
+- `convert_timezone` - Convert times between zones (return single result)
+- `countdown` - Calculate time until date/event (return duration)
+
+**Information Retrieval**
+- `search_web` - DuckDuckGo search (return top 3 results, titles + snippets only)
+- `get_definition` - Word definitions (return concise definition)
+- `get_exchange_rate` - Currency conversion (return single rate)
+- `get_crypto_price` - Crypto prices (return current price only, no history)
+- `ip_lookup` - Get info about IP address (return location summary)
+
+**System Interaction**
+- `run_shell_command` - Execute safe shell commands (whitelist only, limit output to 500 chars)
+- `get_system_info` - CPU/RAM/disk usage (return compact stats)
+- `list_processes` - Show running processes (return top 10 by CPU/memory)
+- `check_port` - Check if port is open (return boolean + service name)
+
+**File Operations**
+- `read_file` - Read file contents (limit to 1000 chars, or return excerpt)
+- `write_file` - Write/append to file (return success confirmation)
+- `list_directory` - List files in directory (return names only, no metadata)
+- `file_info` - Get file size/modified date (return compact stats)
+- `search_files` - Find files by name pattern (return paths only, limit 20 results)
+
+**Communication**
+- `send_email` - Send email via SMTP (return success/failure)
+- `send_sms` - Send SMS via API (return delivery status)
+- `post_webhook` - POST to webhook URL (return HTTP status)
+
+**Note & Task Management**
+- `save_note` - Save note to database (return note ID)
+- `search_notes` - Search saved notes (return titles/IDs, not full content)
+- `create_todo` - Add todo item (return item ID)
+- `list_todos` - Show incomplete todos (return compact list, max 10)
+- `complete_todo` - Mark todo done (return confirmation)
+
+**Data Manipulation**
+- `encode_base64` - Encode string to base64 (return encoded)
+- `decode_base64` - Decode base64 string (return decoded)
+- `hash_string` - Generate hash (MD5/SHA256) of string (return hash)
+- `json_query` - Query JSON with JSONPath (return matching values)
+- `url_encode` - URL encode string (return encoded)
+
+**Utilities**
+- `generate_uuid` - Create UUID (return UUID string)
+- `generate_password` - Generate secure password (return password)
+- `qr_code` - Generate QR code (return data URL or save to file)
+- `shorten_url` - Shorten URL via service (return short URL)
+- `validate_email` - Check email format validity (return boolean)
+
+**Context-Aware Personal Assistant**
+- `remember_fact` - Store user preference/fact (return confirmation)
+- `recall_fact` - Retrieve stored fact by key (return value only)
+- `get_location` - Get user's location (return city/country, not full address)
+- `translate_text` - Translate text (return translation only, no metadata)
+
+**Design Principles for These Tools:**
+1. **Compact Results**: All tools return <200 tokens
+2. **No Streaming**: Complete results, not large datasets
+3. **Error Resilient**: Always return something, even on failure
+4. **Fast Execution**: Complete in <2 seconds to avoid timeout
+5. **Stateless**: No persistent state between calls (except database-backed tools)
+6. **Safe**: Input validation, no arbitrary code execution
+7. **Focused**: Single purpose, not multi-function tools
+
+**Tools to AVOID (context window problems):**
+- ❌ `read_large_file` - Outputs too large
+- ❌ `analyze_code` - Results too verbose
+- ❌ `summarize_document` - Input + output too large
+- ❌ `browse_webpage` - Full HTML too large
+- ❌ `list_all_files_recursive` - Output grows unbounded
+- ❌ `get_api_docs` - Documentation too verbose
+- ❌ `debug_error` - Stack traces and context too large
 
 ## Configuration Management
 
@@ -263,6 +408,9 @@ Wrap external services (Ollama, Matrix) in client classes that:
 - Handle connection lifecycle
 - Provide simplified API to rest of application
 - Manage service-specific error handling
+- Are **self-contained** in their own files (no shared configuration)
+- Accept configuration via constructor (dependency injection)
+- Can be added/removed without affecting other clients
 
 ### 2. **Registry Pattern**
 Tools are registered in a central location (`src/tools/index.js`) that:
@@ -327,11 +475,16 @@ export function getTools() {
 ### Adding a New Client
 
 If integrating another service:
-1. Create client class in `src/clients/newService.js`
-2. Implement `connect()` and service-specific methods
-3. Export class for use in `src/index.js`
-4. Add configuration to `.env.example`
-5. Initialize in `src/index.js`
+1. Create **self-contained** client class in `src/clients/newService.js`
+   - Include all service-specific logic in this one file
+   - Accept configuration via constructor
+   - No dependencies on other clients
+2. Implement connection lifecycle methods (`connect()`, `disconnect()`)
+3. Implement service-specific methods (your API surface)
+4. Export class for direct import in `src/index.js`
+5. Add required environment variables to `.env.example`
+6. Initialize client in `src/index.js` with configuration
+7. **Do NOT create** `clients/index.js` - import clients directly where needed
 
 ### Modifying Agent Behavior
 

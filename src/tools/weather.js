@@ -1,6 +1,8 @@
 export const weatherTool = {
   name: 'get_weather',
   description: 'Get weather for a location (mock data)',
+  category: 'weather',
+  keywords: ['weather', 'temperature', 'forecast', 'climate', 'hot', 'cold', 'rain'],
   parameters: {
     type: 'object',
     properties: {

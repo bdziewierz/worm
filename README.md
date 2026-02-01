@@ -6,14 +6,15 @@ A command-line Node.js application that acts as a personal AI assistant using Ol
 
 - 🤖 **AI Agent System**: Powered by Ollama LLM with tool execution capabilities
 - 💬 **Matrix Chat Integration**: Communicate with your assistant through Matrix
-- � **User Access Control**: Allowlist system to restrict who can use the assistant
-- �🔧 **Extensible Tools**: Easy to add new tools and capabilities
+- 🧠 **Intelligent Tool Selection**: ONNX-based intent classification for accurate tool detection
+- 🔒 **User Access Control**: Allowlist system to restrict who can use the assistant
+- 🔧 **Extensible Tools**: Easy to add new tools and capabilities
 - 🌐 **Remote Ollama**: Connects to remote Ollama server
 - ⚡ **Modern Node.js**: Uses ESM modules and latest Node.js features (v20+)
 
 ## Prerequisites
 
-- Node.js 20.0.0 or higher
+- Node.js 22.0.0 or higher
 - Access to a remote Ollama server
 - Matrix account and access token
 - A Matrix room for the assistant
@@ -51,40 +52,71 @@ MATRIX_ROOM_ID=!your_room_id:matrix.org
 # Example: @user1:matrix.org,@user2:matrix.org
 MATRIX_ALLOWED_USERS=
 
+# Tools Configuration
+CORE_TOOLS=get_current_time,calculate
+
+# Intent Classifier (optional - uses fallback if disabled)
+USE_INTENT_CLASSIFIER=true
+INTENT_THRESHOLD=0.7
+TOOL_THRESHOLD=0.5
+
 # Assistant Configuration
 ASSISTANT_NAME=WORM Assistant
 ```
 
 ## Getting Matrix Access Token
 
-To get your Matrix access token:
+**Create a dedicated bot account:**
 
-1. **Option 1 - Using Element Web:**
-   - Log in to Element (https://app.element.io)
+1. Register a new Matrix account specifically for the bot (not your personal account)
+   - Go to https://app.element.io and click "Create Account"
+   - Use a descriptive name like `worm-assistant` or `my-bot`
+   - Complete the registration
+
+2. Get the access token using one of these methods:
+
+   **Option A - Using Element Web:**
+   - Log in to Element with your bot account
    - Click on your profile → All Settings → Help & About
    - Scroll down and click "Access Token"
    - Copy the token (keep it secure!)
 
-2. **Option 2 - Using curl:**
+   **Option B - Using curl:**
    ```bash
    curl -X POST "https://matrix.org/_matrix/client/r0/login" \
      -H "Content-Type: application/json" \
      -d '{
        "type": "m.login.password",
-       "user": "your_username",
-       "password": "your_password"
+       "user": "your_bot_username",
+       "password": "your_bot_password"
      }'
    ```
 
-3. **Option 3 - Create a dedicated bot account** (recommended):
-   - Register a new Matrix account for the bot
-   - Use one of the above methods to get its access token
+3. Add the bot to your room and configure the token in `.env`
 
 ## Getting Room ID
 
 To get your Matrix room ID:
 - In Element, go to Room Settings → Advanced
 - Copy the "Internal Room ID" (starts with `!`)
+
+## ONNX Model Setup (Required)
+
+**Why Intent Classification?**
+
+The assistant uses intent classification to **preselect relevant tools before sending to the LLM**. This dramatically reduces context window usage:
+- Without preselection: ~1000 tokens wasted on irrelevant tool schemas
+- With preselection: Only 2-3 relevant tools loaded (~100-200 tokens)
+- Critical for consumer hardware: Gemma 3 27B limited to 4K-8K effective context due to VRAM constraints
+
+To use the assistant, install the ONNX model:
+
+1. Create models directory:
+```bash
+mkdir models
+```
+
+2. Download the model following instructions in [INTENT_CLASSIFIER.md](INTENT_CLASSIFIER.md)
 
 ## Running the Assistant
 
@@ -241,7 +273,7 @@ No, Matrix users cannot be spoofed when properly configured:
 **Best Practices:**
 - Keep your `.env` file secure and never commit it to version control
 - The Matrix access token provides full access to your bot account - keep it secret
-- Use a dedicated bot account instead of your personal account
+- Always use a dedicated bot account, never use your personal Matrix account
 - Enable the user allowlist (`MATRIX_ALLOWED_USERS`) to restrict access
 - Use strong, unique passwords for your Matrix bot account
 - Review and sanitize any user inputs in custom tools
