@@ -1,14 +1,34 @@
+async function getWikipediaExtract(title) {
+  try {
+    const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro=1&explaintext=1&titles=${encodeURIComponent(title)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const pages = data.query?.pages || {};
+    const page = Object.values(pages)[0];
+
+    if (!page || page.missing) return null;
+
+    // Truncate to ~500 chars for token budget
+    const extract = page.extract || '';
+    return extract.length > 500 ? extract.substring(0, 500) + '...' : extract;
+  } catch {
+    return null;
+  }
+}
+
 export const searchTool = {
-  name: 'web_search',
-  description: 'Search the web for information using DuckDuckGo',
-  category: 'search',
-  keywords: ['search', 'google', 'find', 'look up', 'web', 'internet', 'query'],
+  name: 'search',
+  description:
+    'Search Wikipedia for factual information. Use for definitions, historical facts, people, places, concepts.',
   parameters: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'The search query (e.g., "capital of France", "what is JavaScript")',
+        description: 'The search query (e.g., "Node.js", "Albert Einstein", "photosynthesis")',
       },
     },
     required: ['query'],
@@ -17,51 +37,55 @@ export const searchTool = {
     try {
       const { query } = args;
 
-      // Use DuckDuckGo Instant Answer API (no key required)
-      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-      const response = await fetch(url);
+      if (!query || typeof query !== 'string') {
+        return { error: 'Query is required and must be a string' };
+      }
+
+      // Use Wikipedia OpenSearch API (no key required)
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&format=json&search=${encodeURIComponent(query)}&limit=3`;
+      const response = await fetch(searchUrl);
 
       if (!response.ok) {
-        return { error: 'Search request failed' };
+        return { error: 'Wikipedia search failed' };
       }
 
       const data = await response.json();
+      // OpenSearch returns: [query, [titles], [descriptions], [urls]]
+      const titles = data[1] || [];
+      const descriptions = data[2] || [];
+      const urls = data[3] || [];
 
-      // Extract relevant information
-      const results = {
-        query: query,
-        answer: data.AbstractText || data.Answer || null,
-        source: data.AbstractURL || data.AnswerURL || null,
-        related:
-          data.RelatedTopics?.slice(0, 3)
-            .map(topic => ({
-              text: topic.Text?.substring(0, 100) || '',
-              url: topic.FirstURL || '',
-            }))
-            .filter(r => r.text) || [],
-      };
-
-      // Create summary
-      if (results.answer) {
-        return {
-          ...results,
-          summary: `${results.answer}${results.source ? ` (Source: ${results.source})` : ''}`,
-        };
-      } else if (results.related.length > 0) {
-        return {
-          ...results,
-          summary: `Found ${results.related.length} related topics. Top result: ${results.related[0].text}`,
-        };
-      } else {
+      if (titles.length === 0) {
         return {
           query: query,
-          summary: `No instant answer found for "${query}". Try rephrasing or being more specific.`,
+          summary: 'No Wikipedia articles found. Try rephrasing your query.',
+          results: [],
         };
       }
+
+      // Get extract for the top result
+      const topTitle = titles[0];
+      const extract = await getWikipediaExtract(topTitle);
+
+      const results = titles.slice(0, 3).map((title, i) => ({
+        title: title,
+        description: descriptions[i] || '',
+        url: urls[i] || '',
+      }));
+
+      return {
+        query: query,
+        title: topTitle,
+        extract: extract || descriptions[0] || 'No extract available.',
+        url: urls[0],
+        related: results.slice(1),
+        summary: extract
+          ? `${topTitle}: ${extract} (${urls[0]})`
+          : `${topTitle}: ${descriptions[0]} (${urls[0]})`,
+      };
     } catch (error) {
       return {
-        error: `Search failed: ${error.message}`,
-        query: args.query,
+        error: error.message,
       };
     }
   },
