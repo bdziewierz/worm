@@ -35,10 +35,10 @@ export class ToolCaller {
       `- Questions you can answer from general knowledge\n` +
       `- Statements that don't ask for anything\n` +
       `- Emotional expressions or small talk\n\n` +
-      `USE tools only for:\n` +
-      `- Explicit requests for calculations, weather, search, etc.\n` +
+      `USE tools for:\n` +
+      `- Explicit requests (calculate, weather, search, etc.)\n` +
       `- Questions requiring real-time data or computation\n` +
-      `- Clear task requests matching available tools\n\n` +
+      `- Storing important facts user shares (preferences, projects, context) - use remember tool\n\n` +
       `CRITICAL: Some tools generate data (passwords, UUIDs, hashes). ALWAYS call these tools.\n` +
       `NEVER simulate or hallucinate their outputs. If user requests password/UUID/hash, call the tool.\n\n` +
       `Rules: If tools needed: Output {"tool_calls": [{"name": "tool_name"}]}. ` +
@@ -123,7 +123,7 @@ export class ToolCaller {
     return responseSanitiser(response?.message?.content || '');
   }
 
-  async run(messages, tools) {
+  async run(messages, tools, userId = null) {
     const decision = await this._routeTools(messages, tools);
 
     if (!decision.tool_calls || decision.tool_calls.length === 0) {
@@ -158,8 +158,9 @@ export class ToolCaller {
       }
       try {
         const args = argMap.get(String(toolName)) || {};
+        const context = { userId };
         console.log(`   🔧 ${tool.name}(${JSON.stringify(args)})`);
-        const result = await tool.execute(args);
+        const result = await tool.execute(args, context);
         console.log(
           `   ✓ ${tool.name} → ${JSON.stringify(result).substring(0, 100)}${JSON.stringify(result).length > 100 ? '...' : ''}`
         );

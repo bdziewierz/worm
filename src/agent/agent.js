@@ -1,5 +1,6 @@
 import { ToolCaller } from '../lib/toolCaller.js';
 import { responseSanitiser } from '../lib/responseSanitiser.js';
+import { Memory } from '../lib/memory.js';
 
 export class Agent {
   constructor(ollamaClient, tools = [], config = {}) {
@@ -13,9 +14,10 @@ export class Agent {
     this.systemPrompt = this._buildSystemPrompt();
     this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : 5;
     this.toolCaller = new ToolCaller(ollamaClient);
+    this.memory = new Memory();
   }
 
-  _buildSystemPrompt(userName = null) {
+  async _buildSystemPrompt(userName = null) {
     const now = new Date().toISOString();
     let prompt = `You are ${this.name}. Personality: ${this.personality}`;
 
@@ -31,6 +33,12 @@ export class Agent {
 
     if (userName) {
       prompt += `\n\nYou are talking to: ${userName}`;
+
+      // Load user facts from memory
+      const facts = await this.memory.getUserFacts(userName);
+      if (facts.length > 0) {
+        prompt += `\n\nWhat you know about ${userName}:\n${facts.map(f => `- ${f}`).join('\n')}`;
+      }
     }
 
     prompt += `\n\nBe concise. Ask for clarification if unclear.`;
@@ -51,7 +59,7 @@ export class Agent {
     }
 
     const messages = [
-      { role: 'system', content: this._buildSystemPrompt(userName) },
+      { role: 'system', content: await this._buildSystemPrompt(userName) },
       ...this.conversationHistory,
     ];
 
@@ -59,7 +67,7 @@ export class Agent {
       let assistantMessage;
 
       if (this.tools.length > 0) {
-        assistantMessage = await this.toolCaller.run(messages, this.tools);
+        assistantMessage = await this.toolCaller.run(messages, this.tools, userName);
       } else {
         const response = await this.ollama.chat(messages);
         assistantMessage = responseSanitiser(response?.message?.content);
