@@ -8,12 +8,12 @@ export const searchTool = {
     properties: {
       query: {
         type: 'string',
-        description: 'The search query (e.g., "capital of France", "what is JavaScript")'
-      }
+        description: 'The search query (e.g., "capital of France", "what is JavaScript")',
+      },
     },
-    required: ['query']
+    required: ['query'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { query } = args;
 
@@ -32,35 +32,37 @@ export const searchTool = {
         query: query,
         answer: data.AbstractText || data.Answer || null,
         source: data.AbstractURL || data.AnswerURL || null,
-        related: data.RelatedTopics?.slice(0, 3).map(topic => ({
-          text: topic.Text?.substring(0, 100) || '',
-          url: topic.FirstURL || ''
-        })).filter(r => r.text) || []
+        related:
+          data.RelatedTopics?.slice(0, 3)
+            .map(topic => ({
+              text: topic.Text?.substring(0, 100) || '',
+              url: topic.FirstURL || '',
+            }))
+            .filter(r => r.text) || [],
       };
 
       // Create summary
       if (results.answer) {
         return {
           ...results,
-          summary: `${results.answer}${results.source ? ` (Source: ${results.source})` : ''}`
+          summary: `${results.answer}${results.source ? ` (Source: ${results.source})` : ''}`,
         };
       } else if (results.related.length > 0) {
         return {
           ...results,
-          summary: `Found ${results.related.length} related topics. Top result: ${results.related[0].text}`
+          summary: `Found ${results.related.length} related topics. Top result: ${results.related[0].text}`,
         };
       } else {
         return {
           query: query,
-          summary: `No instant answer found for "${query}". Try rephrasing or being more specific.`
+          summary: `No instant answer found for "${query}". Try rephrasing or being more specific.`,
         };
       }
-
     } catch (error) {
       return {
         error: `Search failed: ${error.message}`,
-        query: args.query
+        query: args.query,
       };
     }
-  }
+  },
 };

@@ -1,5 +1,3 @@
-import crypto from 'crypto';
-
 export const encodeTool = {
   name: 'encode_decode',
   description: 'Encode or decode text (base64, URL encoding, hex)',
@@ -10,16 +8,17 @@ export const encodeTool = {
     properties: {
       text: {
         type: 'string',
-        description: 'The text to encode or decode'
+        description: 'The text to encode or decode',
       },
       operation: {
         type: 'string',
-        description: 'Operation to perform: "base64_encode", "base64_decode", "url_encode", "url_decode", "hex_encode", "hex_decode"'
-      }
+        description:
+          'Operation to perform: "base64_encode", "base64_decode", "url_encode", "url_decode", "hex_encode", "hex_decode"',
+      },
     },
-    required: ['text', 'operation']
+    required: ['text', 'operation'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { text, operation } = args;
 
@@ -53,7 +52,8 @@ export const encodeTool = {
         default:
           return {
             error: `Unknown operation: ${operation}`,
-            supported: 'base64_encode, base64_decode, url_encode, url_decode, hex_encode, hex_decode'
+            supported:
+              'base64_encode, base64_decode, url_encode, url_decode, hex_encode, hex_decode',
           };
       }
 
@@ -61,14 +61,13 @@ export const encodeTool = {
         input: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
         operation: operation,
         result: result,
-        length: result.length
+        length: result.length,
       };
-
     } catch (error) {
       return {
         error: `Encoding/decoding failed: ${error.message}`,
-        operation: args.operation
+        operation: args.operation,
       };
     }
-  }
+  },
 };

@@ -8,7 +8,7 @@ export class ToolCaller {
   _buildToolList(tools) {
     return tools.map(tool => ({
       name: tool.name,
-      description: tool.description
+      description: tool.description,
     }));
   }
 
@@ -27,14 +27,15 @@ export class ToolCaller {
   async _routeTools(messages, tools) {
     const startTime = Date.now();
     const toolList = JSON.stringify(this._buildToolList(tools));
-    const systemPrompt = `Available tools: ${toolList}\n\n` +
+    const systemPrompt =
+      `Available tools: ${toolList}\n\n` +
       `Task: Determine if any tools are needed to answer the user's request.\n` +
       `If tools needed: Output {"tool_calls": [{"name": "tool_name"}]}\n` +
       `If no tools needed: Answer directly in plain text.`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
-      ...messages
+      ...messages,
     ]);
 
     const duration = Date.now() - startTime;
@@ -51,7 +52,7 @@ export class ToolCaller {
     const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
     return {
       tool_calls: toolCalls,
-      response: ''
+      response: '',
     };
   }
 
@@ -63,17 +64,18 @@ export class ToolCaller {
     const schemas = selectedTools.map(tool => ({
       name: tool.name,
       description: tool.description,
-      parameters: tool.parameters || {}
+      parameters: tool.parameters || {},
     }));
 
-    const systemPrompt = `Tools with parameters: ${JSON.stringify(schemas)}\n\n` +
+    const systemPrompt =
+      `Tools with parameters: ${JSON.stringify(schemas)}\n\n` +
       `Task: Extract arguments for each tool from the conversation.\n` +
       `Output: {"tool_calls": [{"name": "tool_name", "arguments": {...}}]}`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
       ...messages,
-      { role: 'user', content: userMessage }
+      { role: 'user', content: userMessage },
     ]);
 
     const duration = Date.now() - startTime;
@@ -90,14 +92,15 @@ export class ToolCaller {
 
   async _requestFinalResponse(messages, toolResults) {
     const startTime = Date.now();
-    const systemPrompt = `Tool execution results: ${JSON.stringify(toolResults)}\n\n` +
+    const systemPrompt =
+      `Tool execution results: ${JSON.stringify(toolResults)}\n\n` +
       `Task: Answer the user's question using ONLY the results above.\n` +
       `Rules: Do NOT call any tools. Do NOT output JSON. Write a natural, conversational response.`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
       ...messages,
-      { role: 'user', content: `Tool results: ${JSON.stringify(toolResults)}` }
+      { role: 'user', content: `Tool results: ${JSON.stringify(toolResults)}` },
     ]);
 
     const duration = Date.now() - startTime;
@@ -145,7 +148,9 @@ export class ToolCaller {
         const args = argMap.get(String(toolName)) || {};
         console.log(`   🔧 ${tool.name}(${JSON.stringify(args)})`);
         const result = await tool.execute(args);
-        console.log(`   ✓ ${tool.name} → ${JSON.stringify(result).substring(0, 100)}${JSON.stringify(result).length > 100 ? '...' : ''}`);
+        console.log(
+          `   ✓ ${tool.name} → ${JSON.stringify(result).substring(0, 100)}${JSON.stringify(result).length > 100 ? '...' : ''}`
+        );
         toolResults.push({ name: tool.name, result });
       } catch (error) {
         console.log(`   ❌ ${tool.name} error: ${error.message}`);

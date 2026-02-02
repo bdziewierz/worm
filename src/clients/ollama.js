@@ -13,8 +13,10 @@ export class OllamaClient {
       const modelExists = response.models.some(m => m.name.includes(this.model));
 
       if (!modelExists) {
-        console.warn(`⚠️  Model ${this.model} not found. Available models:`,
-          response.models.map(m => m.name).join(', '));
+        console.warn(
+          `⚠️  Model ${this.model} not found. Available models:`,
+          response.models.map(m => m.name).join(', ')
+        );
       }
 
       return true;
@@ -27,7 +29,7 @@ export class OllamaClient {
     const options = {
       model: this.model,
       messages: messages,
-      stream: false
+      stream: false,
     };
 
     if (tools && tools.length > 0) {
@@ -48,7 +50,7 @@ export class OllamaClient {
         model: this.model,
         prompt: prompt,
         stream: false,
-        ...options
+        ...options,
       });
       return response.response;
     } catch (error) {

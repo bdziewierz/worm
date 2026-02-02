@@ -8,32 +8,86 @@ export const loremTool = {
     properties: {
       type: {
         type: 'string',
-        description: 'Type of content: "words", "sentences", "paragraphs" (default: "paragraphs")'
+        description: 'Type of content: "words", "sentences", "paragraphs" (default: "paragraphs")',
       },
       count: {
         type: 'number',
-        description: 'Number of words/sentences/paragraphs to generate (default: 3, max: 20)'
-      }
-    }
+        description: 'Number of words/sentences/paragraphs to generate (default: 3, max: 20)',
+      },
+    },
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { type = 'paragraphs', count = 3 } = args;
       const num = Math.min(Math.max(count, 1), 20);
 
       const words = [
-        'lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit',
-        'sed', 'do', 'eiusmod', 'tempor', 'incididunt', 'ut', 'labore', 'et', 'dolore',
-        'magna', 'aliqua', 'enim', 'ad', 'minim', 'veniam', 'quis', 'nostrud',
-        'exercitation', 'ullamco', 'laboris', 'nisi', 'aliquip', 'ex', 'ea', 'commodo',
-        'consequat', 'duis', 'aute', 'irure', 'in', 'reprehenderit', 'voluptate',
-        'velit', 'esse', 'cillum', 'fugiat', 'nulla', 'pariatur', 'excepteur',
-        'sint', 'occaecat', 'cupidatat', 'non', 'proident', 'sunt', 'culpa', 'qui',
-        'officia', 'deserunt', 'mollit', 'anim', 'id', 'est', 'laborum'
+        'lorem',
+        'ipsum',
+        'dolor',
+        'sit',
+        'amet',
+        'consectetur',
+        'adipiscing',
+        'elit',
+        'sed',
+        'do',
+        'eiusmod',
+        'tempor',
+        'incididunt',
+        'ut',
+        'labore',
+        'et',
+        'dolore',
+        'magna',
+        'aliqua',
+        'enim',
+        'ad',
+        'minim',
+        'veniam',
+        'quis',
+        'nostrud',
+        'exercitation',
+        'ullamco',
+        'laboris',
+        'nisi',
+        'aliquip',
+        'ex',
+        'ea',
+        'commodo',
+        'consequat',
+        'duis',
+        'aute',
+        'irure',
+        'in',
+        'reprehenderit',
+        'voluptate',
+        'velit',
+        'esse',
+        'cillum',
+        'fugiat',
+        'nulla',
+        'pariatur',
+        'excepteur',
+        'sint',
+        'occaecat',
+        'cupidatat',
+        'non',
+        'proident',
+        'sunt',
+        'culpa',
+        'qui',
+        'officia',
+        'deserunt',
+        'mollit',
+        'anim',
+        'id',
+        'est',
+        'laborum',
       ];
 
       const generateWord = () => words[Math.floor(Math.random() * words.length)];
-      
+
       const generateSentence = () => {
         const length = Math.floor(Math.random() * 10) + 5; // 5-15 words
         const sentence = Array.from({ length }, generateWord).join(' ');
@@ -46,7 +100,7 @@ export const loremTool = {
       };
 
       let result;
-      
+
       switch (type.toLowerCase()) {
         case 'words':
           result = Array.from({ length: num }, generateWord).join(' ');
@@ -67,13 +121,12 @@ export const loremTool = {
         count: num,
         text: result,
         length: result.length,
-        summary: `Generated ${num} ${type} (${result.length} characters)`
+        summary: `Generated ${num} ${type} (${result.length} characters)`,
       };
-
     } catch (error) {
       return {
-        error: `Lorem ipsum generation failed: ${error.message}`
+        error: `Lorem ipsum generation failed: ${error.message}`,
       };
     }
-  }
+  },
 };

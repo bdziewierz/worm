@@ -15,7 +15,7 @@ const requiredEnvVars = [
   'OLLAMA_MODEL',
   'MATRIX_HOMESERVER',
   'MATRIX_USER_ID',
-  'MATRIX_ACCESS_TOKEN'
+  'MATRIX_ACCESS_TOKEN',
 ];
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -34,7 +34,7 @@ async function main() {
     console.log(chalk.cyan('📡 Connecting to Ollama...'));
     const ollamaClient = new OllamaClient({
       baseUrl: process.env.OLLAMA_BASE_URL,
-      model: process.env.OLLAMA_MODEL
+      model: process.env.OLLAMA_MODEL,
     });
 
     // Test Ollama connection
@@ -47,7 +47,7 @@ async function main() {
       userId: process.env.MATRIX_USER_ID,
       accessToken: process.env.MATRIX_ACCESS_TOKEN,
       allowedUsers: process.env.MATRIX_ALLOWED_USERS,
-      allowedRooms: process.env.MATRIX_ALLOWED_ROOMS
+      allowedRooms: process.env.MATRIX_ALLOWED_ROOMS,
     });
 
     await matrixClient.connect();
@@ -58,7 +58,7 @@ async function main() {
     const agent = new Agent(ollamaClient, tools, {
       maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5,
       name: process.env.NAME,
-      personality: process.env.PERSONALITY
+      personality: process.env.PERSONALITY,
     });
     const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
       ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
@@ -69,8 +69,12 @@ async function main() {
     console.log(chalk.gray(`${roomsMsg}\n${usersMsg}\n`));
 
     // Handle Matrix messages
-    matrixClient.onMessage(async (message) => {
-      console.log(chalk.blue(`\n📨 Received from ${message.sender} in room ${message.roomId}: ${message.text}`));
+    matrixClient.onMessage(async message => {
+      console.log(
+        chalk.blue(
+          `\n📨 Received from ${message.sender} in room ${message.roomId}: ${message.text}`
+        )
+      );
 
       try {
         await matrixClient.setTyping(message.roomId, true);
@@ -79,7 +83,10 @@ async function main() {
         console.log(chalk.green(`✓ Sent response\n`));
       } catch (error) {
         console.error(chalk.red(`❌ Error processing message: ${error.message}`));
-        await matrixClient.sendMessage(`Sorry, I encountered an error: ${error.message}`, message.roomId);
+        await matrixClient.sendMessage(
+          `Sorry, I encountered an error: ${error.message}`,
+          message.roomId
+        );
       } finally {
         await matrixClient.setTyping(message.roomId, false);
       }
@@ -91,7 +98,6 @@ async function main() {
       await matrixClient.disconnect();
       process.exit(0);
     });
-
   } catch (error) {
     console.error(chalk.red(`\n❌ Fatal error: ${error.message}`));
     console.error(error.stack);

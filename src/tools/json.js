@@ -8,16 +8,17 @@ export const jsonTool = {
     properties: {
       json_string: {
         type: 'string',
-        description: 'The JSON string to process'
+        description: 'The JSON string to process',
       },
       operation: {
         type: 'string',
-        description: 'Operation: "format" (pretty print), "minify" (compact), "validate" (check validity)'
-      }
+        description:
+          'Operation: "format" (pretty print), "minify" (compact), "validate" (check validity)',
+      },
     },
-    required: ['json_string', 'operation']
+    required: ['json_string', 'operation'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { json_string, operation } = args;
 
@@ -29,7 +30,7 @@ export const jsonTool = {
         return {
           valid: false,
           error: `Invalid JSON: ${parseError.message}`,
-          operation: operation
+          operation: operation,
         };
       }
 
@@ -38,41 +39,42 @@ export const jsonTool = {
           return {
             valid: true,
             type: Array.isArray(parsed) ? 'array' : typeof parsed,
-            summary: 'Valid JSON'
+            summary: 'Valid JSON',
           };
 
         case 'format':
-        case 'pretty':
+        case 'pretty': {
           const formatted = JSON.stringify(parsed, null, 2);
           return {
             valid: true,
             formatted: formatted,
             lines: formatted.split('\n').length,
             size: formatted.length,
-            summary: `Formatted JSON (${formatted.split('\n').length} lines)`
+            summary: `Formatted JSON (${formatted.split('\n').length} lines)`,
           };
+        }
 
         case 'minify':
-        case 'compact':
+        case 'compact': {
           const minified = JSON.stringify(parsed);
           return {
             valid: true,
             minified: minified,
             size: minified.length,
-            summary: `Minified JSON (${minified.length} bytes)`
+            summary: `Minified JSON (${minified.length} bytes)`,
           };
+        }
 
         default:
           return {
             error: `Unknown operation: ${operation}`,
-            supported: 'format, minify, validate'
+            supported: 'format, minify, validate',
           };
       }
-
     } catch (error) {
       return {
-        error: `JSON processing failed: ${error.message}`
+        error: `JSON processing failed: ${error.message}`,
       };
     }
-  }
+  },
 };

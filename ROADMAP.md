@@ -5,6 +5,7 @@ This document outlines planned features and improvements for the WORM personal a
 ## Current Status
 
 ✅ **Core Features Complete:**
+
 - Ollama LLM integration with custom 3-stage tool calling
 - Matrix chat client with message handling
 - Security (user and room allowlists)
@@ -16,11 +17,13 @@ This document outlines planned features and improvements for the WORM personal a
 ## High Priority
 
 ### Encryption Support
+
 **Status:** Not implemented
 **Priority:** High
 **Description:** Add Matrix E2EE (End-to-End Encryption) support to allow bot operation in encrypted rooms.
 
 **Requirements:**
+
 - Set up crypto store (memory or file-based)
 - Handle device verification
 - Implement key management
@@ -29,18 +32,21 @@ This document outlines planned features and improvements for the WORM personal a
 - Encrypt outgoing messages
 
 **Technical Notes:**
+
 - matrix-js-sdk provides crypto support via `MatrixClient.initCrypto()`
 - Requires storage for encryption keys (consider SQLite for persistence)
 - Device verification workflow needed for initial setup
 - May increase memory footprint (consider hardware constraints)
 
 **References:**
+
 - https://matrix.org/docs/guides/end-to-end-encryption-implementation-guide
 - matrix-js-sdk crypto documentation
 
 ## Medium Priority
 
 ### Tool Expansion
+
 - File operations (read, write, list)
 - System monitoring (CPU, RAM, disk usage)
 - Web search integration (DuckDuckGo API)
@@ -48,12 +54,14 @@ This document outlines planned features and improvements for the WORM personal a
 - Reminder/scheduling system with persistence
 
 ### Tool Calling Improvements
+
 - Retry logic for malformed JSON responses
 - Parallel tool execution when tools are independent
 - Tool result caching for repeated calls
 - Streaming support for long-running tools
 
 ### Conversation Management
+
 - Conversation summarization for long threads
 - Context pruning strategies
 - Multiple conversation threads per user
@@ -62,6 +70,7 @@ This document outlines planned features and improvements for the WORM personal a
 ## Low Priority
 
 ### Developer Experience
+
 - Unit tests for tools and clients
 - Integration tests for Matrix and Ollama
 - Docker containerization
@@ -69,6 +78,7 @@ This document outlines planned features and improvements for the WORM personal a
 - Development mode with hot reload
 
 ### User Experience
+
 - Rich message formatting (markdown, HTML)
 - Reaction-based interactions
 - Multi-language support
@@ -76,6 +86,7 @@ This document outlines planned features and improvements for the WORM personal a
 - User preferences storage
 
 ### Performance Optimization
+
 - Connection pooling for Ollama
 - Response streaming for long outputs
 - Tool result caching
@@ -84,17 +95,20 @@ This document outlines planned features and improvements for the WORM personal a
 ## Future Considerations
 
 ### Alternative LLM Providers
+
 - OpenAI API support
 - Anthropic Claude support
 - Local LLM via llama.cpp
 
 ### Multi-Platform Support
+
 - Slack integration
 - Discord bot
 - Telegram bot
 - REST API for custom clients
 
 ### Advanced Features
+
 - Memory/knowledge base (RAG)
 - Custom tool marketplace
 - Plugin system for extensions
@@ -108,6 +122,7 @@ See individual issues for detailed implementation plans. Feel free to contribute
 ## Architecture Constraints
 
 All features must respect the lightweight agent design:
+
 - **Context Window:** 4K-8K tokens maximum
 - **Hardware Target:** 24GB VRAM, 32GB RAM
 - **Model Target:** Gemma 3 27B, Qwen 3 32B @ Q4 quantization

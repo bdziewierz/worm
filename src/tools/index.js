@@ -9,7 +9,7 @@ import { randomTool } from './random.js';
 import { hashTool } from './hash.js';
 import { timezoneTool } from './timezone.js';
 import { passwordTool } from './password.js';
-import { textAnalyzerTool } from './textAnalyzer.js';
+import { textAnalyzerTool } from './textLengthAnalyzer.js';
 import { jsonTool } from './json.js';
 import { colorTool } from './color.js';
 import { loremTool } from './lorem.js';
@@ -21,7 +21,10 @@ function getCoreToolNames() {
   if (!coreToolsEnv.trim()) {
     return [];
   }
-  return coreToolsEnv.split(',').map(name => name.trim()).filter(name => name.length > 0);
+  return coreToolsEnv
+    .split(',')
+    .map(name => name.trim())
+    .filter(name => name.length > 0);
 }
 
 export function getTools() {
@@ -41,7 +44,7 @@ export function getTools() {
     jsonTool,
     colorTool,
     loremTool,
-    distanceTool
+    distanceTool,
   ];
 
   const coreToolNames = getCoreToolNames();
@@ -49,6 +52,6 @@ export function getTools() {
   // Enrich tools with core status from environment configuration
   return tools.map(tool => ({
     ...tool,
-    core: coreToolNames.includes(tool.name)
+    core: coreToolNames.includes(tool.name),
   }));
 }

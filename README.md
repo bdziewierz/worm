@@ -23,21 +23,25 @@ A command-line Node.js application that acts as a personal AI assistant using Ol
 ## Installation
 
 1. Clone or navigate to the project directory:
+
 ```bash
 cd /Users/bo/Code/worm
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Configure environment variables:
+
 ```bash
 cp .env.example .env
 ```
 
 4. Edit `.env` with your configuration:
+
 ```env
 # Ollama Configuration
 OLLAMA_BASE_URL=http://your-ollama-server:11434
@@ -77,6 +81,7 @@ MAX_HISTORY=5
    - Copy the token (keep it secure!)
 
    **Option B - Using curl:**
+
    ```bash
    curl -X POST "https://matrix.org/_matrix/client/r0/login" \
      -H "Content-Type: application/json" \
@@ -92,22 +97,26 @@ MAX_HISTORY=5
 ## Getting Room ID
 
 To get your Matrix room ID:
+
 - In Element, go to Room Settings → Advanced
 - Copy the "Internal Room ID" (starts with `!`)
 
 ## Running the Assistant
 
 Start the assistant:
+
 ```bash
 npm start
 ```
 
 Or in development mode with auto-reload:
+
 ```bash
 npm run dev
 ```
 
 The assistant will:
+
 1. Connect to your Ollama server
 2. Join your Matrix room
 3. Listen for messages and respond with AI-powered answers
@@ -134,28 +143,29 @@ export const myTool = {
     properties: {
       param1: {
         type: 'string',
-        description: 'Parameter description'
-      }
+        description: 'Parameter description',
+      },
     },
-    required: ['param1']
+    required: ['param1'],
   },
-  execute: async (args) => {
+  execute: async args => {
     // Tool implementation
     return {
-      result: 'Tool output'
+      result: 'Tool output',
     };
-  }
+  },
 };
 ```
 
 Then add it to `src/tools/index.js`:
+
 ```javascript
 import { myTool } from './myTool.js';
 
 export function getTools() {
   return [
     // ...existing tools,
-    myTool
+    myTool,
   ];
 }
 ```
@@ -188,19 +198,93 @@ worm/
 Once running, you can interact with your assistant through Matrix:
 
 **User:** What time is it?
-**Assistant:** *[Uses get_current_time tool]* It's currently 2026-02-01T10:30:00.000Z...
+**Assistant:** _[Uses get_current_time tool]_ It's currently 2026-02-01T10:30:00.000Z...
 
-**User:** Calculate 25 * 4 + 10
-**Assistant:** *[Uses calculate tool]* The result is 110.
+**User:** Calculate 25 _ 4 + 10
+**Assistant:** _[Uses calculate tool]\* The result is 110.
 
 **User:** What's the weather in London?
-**Assistant:** *[Uses get_weather tool]* The weather in London is...
+**Assistant:** _[Uses get_weather tool]_ The weather in London is...
+
+## Troubleshooting
+
+## Development Tools
+
+WORM uses modern static analysis and code quality tools to maintain code standards:
+
+### Available Commands
+
+```bash
+# Code quality checks
+npm run lint              # Run ESLint to check for code issues
+npm run lint:fix          # Auto-fix ESLint issues where possible
+npm run format            # Format all code with Prettier
+npm run format:check      # Check if code is properly formatted
+
+# Security
+npm run audit             # Check for dependency vulnerabilities
+```
+
+### Pre-commit Hooks
+
+Git hooks automatically run before each commit:
+
+1. **lint-staged**: Runs ESLint and Prettier on staged files only (fast!)
+2. **commitlint**: Validates commit message format
+
+### Commit Message Format
+
+Use conventional commits format:
+
+```
+<type>: <description>
+
+[optional body]
+```
+
+**Types:**
+
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting)
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `chore`: Build process or tooling changes
+
+**Examples:**
+
+```bash
+git commit -m "feat: add weather tool with real API integration"
+git commit -m "fix: resolve token counting issue in step 2"
+git commit -m "docs: update security section in README"
+```
+
+### Tool Configuration
+
+- **ESLint**: `eslint.config.js` - Code linting and quality
+- **Prettier**: `.prettierrc` - Code formatting (single quotes, 100 char width)
+- **Husky**: `.husky/` - Git hooks configuration
+- **lint-staged**: `.lintstagedrc.json` - Pre-commit checks
+- **commitlint**: `commitlint.config.js` - Commit message validation
+
+### Bypassing Hooks (Not Recommended)
+
+If absolutely necessary:
+
+```bash
+git commit --no-verify -m "emergency fix"
+```
+
+**Note**: Only use `--no-verify` in genuine emergencies. The hooks exist to maintain code quality.
 
 ## Troubleshooting
 
 ### Connection Issues
 
 - **Ollama**: Ensure your Ollama server is running and accessible
+
   ```bash
   curl http://your-ollama-server:11434/api/tags
   ```
@@ -210,6 +294,7 @@ Once running, you can interact with your assistant through Matrix:
 ### Model Not Found
 
 If your Ollama model isn't available, list available models:
+
 ```bash
 curl http://your-ollama-server:11434/api/tags
 ```
@@ -223,7 +308,9 @@ Then update `OLLAMA_MODEL` in `.env` to match an available model.
 The assistant includes an allowlist feature to control who can interact with it:
 
 **To restrict access to specific users:**
+
 1. Edit your `.env` file and set `MATRIX_ALLOWED_USERS` to a comma-separated list of Matrix user IDs:
+
    ```env
    MATRIX_ALLOWED_USERS=@alice:matrix.org,@bob:example.com
    ```
@@ -231,9 +318,11 @@ The assistant includes an allowlist feature to control who can interact with it:
 2. Restart the assistant. Only messages from users in the allowlist will be processed.
 
 **To allow all users:**
+
 - Leave `MATRIX_ALLOWED_USERS` empty or unset in `.env`
 
 **Security behavior:**
+
 - Unauthorized users' messages are silently rejected and logged
 - The assistant will not respond or acknowledge messages from non-allowlisted users
 - Access control is enforced before any message processing occurs
@@ -249,6 +338,7 @@ No, Matrix users cannot be spoofed when properly configured:
 - **Access Tokens**: Your bot's access token authenticates all actions and cannot be used by other users
 
 **Best Practices:**
+
 - Keep your `.env` file secure and never commit it to version control
 - The Matrix access token provides full access to your bot account - keep it secret
 - Always use a dedicated bot account, never use your personal Matrix account
@@ -256,6 +346,148 @@ No, Matrix users cannot be spoofed when properly configured:
 - Use strong, unique passwords for your Matrix bot account
 - Review and sanitize any user inputs in custom tools
 - Monitor the console output for rejected unauthorized access attempts
+
+## Security Risks of AI Assistants
+
+Running a personal AI assistant like WORM introduces several security considerations that you should understand and mitigate:
+
+### Prompt Injection Attacks
+
+**Risk**: Malicious users could craft messages that manipulate the LLM into:
+
+- Ignoring system instructions and security constraints
+- Executing unintended tools or commands
+- Leaking sensitive information from conversation history
+- Bypassing the user allowlist through social engineering of the AI
+
+**Mitigation**:
+
+- Always use the `MATRIX_ALLOWED_USERS` allowlist - never run with open access
+- Review custom tool implementations for command injection vulnerabilities
+- Be cautious about tools that execute system commands or access files
+- Monitor logs for suspicious tool usage patterns
+- Understand that LLMs can be manipulated through carefully crafted prompts
+
+### Tool Execution Risks
+
+**Risk**: Tools have direct access to your system and can:
+
+- Execute arbitrary calculations or code
+- Make network requests to external APIs
+- Access local files (if you add file-related tools)
+- Potentially be chained together in unexpected ways
+
+**Mitigation**:
+
+- Audit all tool implementations before adding them
+- Limit tool capabilities to only what's necessary
+- Avoid tools that execute shell commands or arbitrary code
+- Use input validation and sanitization in all tools
+- Run the assistant with minimal system permissions
+- Consider sandboxing or containerization (Docker) for isolation
+
+### Data Privacy Concerns
+
+**Risk**: The assistant processes and stores:
+
+- Full conversation history (up to `MAX_HISTORY` messages)
+- Tool execution results that may contain sensitive data
+- User queries that might include personal information
+- All data is visible in console logs
+
+**Mitigation**:
+
+- Understand that conversation history is kept in memory
+- Logs may contain sensitive information - secure your log files
+- Consider what data you share with the assistant
+- If using a shared/remote Ollama server, your data passes through it
+- Review tool outputs for sensitive data before they enter conversation history
+- Consider encrypting logs or limiting log retention
+
+### Network Exposure
+
+**Risk**: The assistant connects to remote services:
+
+- Ollama server (processes all your queries and responses)
+- Matrix homeserver (all messages flow through it)
+- External APIs used by tools (weather, search, crypto prices, etc.)
+
+**Mitigation**:
+
+- Use HTTPS/TLS for all connections where possible
+- Trust your Ollama server provider (or self-host)
+- Understand that Matrix federation means messages may traverse multiple servers
+- Review third-party API privacy policies
+- Consider running Ollama locally instead of remotely
+- Use a private Matrix homeserver if possible
+
+### Access Token Compromise
+
+**Risk**: If your Matrix access token is compromised:
+
+- Attackers gain full control of your bot account
+- Can send messages as the bot to any room it has access to
+- Can read all messages in rooms the bot is in
+- Can modify bot account settings and profile
+
+**Mitigation**:
+
+- Store `.env` file with restrictive permissions (chmod 600)
+- Never commit `.env` to version control (already in .gitignore)
+- Rotate access tokens periodically
+- Use a dedicated bot account with minimal room memberships
+- Monitor bot activity for suspicious behavior
+- Revoke and regenerate tokens immediately if compromise is suspected
+
+### Model Manipulation and Jailbreaking
+
+**Risk**: LLMs can be manipulated to:
+
+- Generate harmful, inappropriate, or misleading content
+- Reveal their system prompts and internal instructions
+- Behave in ways contrary to their intended purpose
+- Provide false information with high confidence
+
+**Mitigation**:
+
+- Understand that LLMs are not perfectly controllable
+- Don't rely on the assistant for critical decisions
+- Verify important information from authoritative sources
+- Use appropriate models for your use case
+- Be aware that personality and behavior can be influenced by user prompts
+- Accept that some level of unpredictability is inherent to LLMs
+
+### Recommended Security Posture
+
+**For Personal Use:**
+
+- ✅ Use the user allowlist with only your Matrix ID
+- ✅ Run on a trusted local network or VPS
+- ✅ Use a dedicated bot account
+- ✅ Regular security updates for Node.js and dependencies
+- ✅ Monitor logs for unusual activity
+- ✅ Limit tool capabilities to what you actually need
+
+**For Shared/Team Use:**
+
+- ✅ All personal use recommendations, plus:
+- ✅ Strict user allowlist with verified team members only
+- ✅ Regular access audits
+- ✅ Consider containerization (Docker)
+- ✅ Implement rate limiting if needed
+- ✅ Document acceptable use policies
+- ✅ Regular security reviews of custom tools
+
+**Never Do:**
+
+- ❌ Expose the assistant to the public internet without authentication
+- ❌ Use your personal Matrix account as the bot
+- ❌ Add tools that execute arbitrary shell commands
+- ❌ Share your access token with anyone
+- ❌ Store sensitive credentials in conversation history
+- ❌ Trust the assistant with critical security decisions
+
+**Bottom Line**: This is a personal AI assistant intended for trusted use. It provides convenience but requires responsible configuration and usage. The security model assumes you trust anyone in your allowlist and understand the risks of LLM-based systems.
 
 ## License
 

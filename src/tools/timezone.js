@@ -8,20 +8,20 @@ export const timezoneTool = {
     properties: {
       time: {
         type: 'string',
-        description: 'Time to convert (ISO format like "2026-02-01T10:30:00" or "10:30")'
+        description: 'Time to convert (ISO format like "2026-02-01T10:30:00" or "10:30")',
       },
       from_timezone: {
         type: 'string',
-        description: 'Source timezone (e.g., "America/New_York", "Europe/London", "UTC")'
+        description: 'Source timezone (e.g., "America/New_York", "Europe/London", "UTC")',
       },
       to_timezone: {
         type: 'string',
-        description: 'Target timezone (e.g., "Asia/Tokyo", "America/Los_Angeles")'
-      }
+        description: 'Target timezone (e.g., "Asia/Tokyo", "America/Los_Angeles")',
+      },
     },
-    required: ['time', 'from_timezone', 'to_timezone']
+    required: ['time', 'from_timezone', 'to_timezone'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { time, from_timezone, to_timezone } = args;
 
@@ -30,14 +30,20 @@ export const timezoneTool = {
       if (time.match(/^\d{1,2}:\d{2}$/)) {
         const now = new Date();
         const [hours, minutes] = time.split(':');
-        dateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(hours), parseInt(minutes));
+        dateTime = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          parseInt(hours),
+          parseInt(minutes)
+        );
       } else {
         dateTime = new Date(time);
       }
 
       if (isNaN(dateTime.getTime())) {
         return {
-          error: `Invalid time format: ${time}. Use ISO format (2026-02-01T10:30:00) or HH:MM`
+          error: `Invalid time format: ${time}. Use ISO format (2026-02-01T10:30:00) or HH:MM`,
         };
       }
 
@@ -50,7 +56,7 @@ export const timezoneTool = {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false
+        hour12: false,
       });
 
       // Format time in target timezone
@@ -62,7 +68,7 @@ export const timezoneTool = {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false
+        hour12: false,
       });
 
       const sourceTime = sourceFormatter.format(dateTime);
@@ -71,20 +77,19 @@ export const timezoneTool = {
       return {
         source: {
           timezone: from_timezone,
-          time: sourceTime
+          time: sourceTime,
         },
         target: {
           timezone: to_timezone,
-          time: targetTime
+          time: targetTime,
         },
-        summary: `${sourceTime} ${from_timezone} = ${targetTime} ${to_timezone}`
+        summary: `${sourceTime} ${from_timezone} = ${targetTime} ${to_timezone}`,
       };
-
     } catch (error) {
       return {
         error: `Timezone conversion failed: ${error.message}`,
-        hint: 'Use IANA timezone names like "America/New_York", "Europe/London", "Asia/Tokyo"'
+        hint: 'Use IANA timezone names like "America/New_York", "Europe/London", "Asia/Tokyo"',
       };
     }
-  }
+  },
 };

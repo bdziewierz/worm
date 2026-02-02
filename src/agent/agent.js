@@ -30,7 +30,7 @@ export class Agent {
     // Add user message to history
     this.conversationHistory.push({
       role: 'user',
-      content: userMessage
+      content: userMessage,
     });
 
     // Keep conversation history manageable
@@ -40,7 +40,7 @@ export class Agent {
 
     const messages = [
       { role: 'system', content: this._buildSystemPrompt(userName) },
-      ...this.conversationHistory
+      ...this.conversationHistory,
     ];
 
     try {
@@ -55,16 +55,16 @@ export class Agent {
 
       if (!assistantMessage) {
         console.warn('⚠️ Empty response from LLM');
-        assistantMessage = "I apologize, but I forgot what I wanted to say. This might be a temporary issue. Could you please ask your question again?";
+        assistantMessage =
+          'I apologize, but I forgot what I wanted to say. This might be a temporary issue. Could you please ask your question again?';
       }
 
       this.conversationHistory.push({
         role: 'assistant',
-        content: assistantMessage
+        content: assistantMessage,
       });
 
       return assistantMessage;
-
     } catch (error) {
       console.error('Error processing message:', error);
       throw error;

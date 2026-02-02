@@ -8,12 +8,13 @@ export const calculateTool = {
     properties: {
       expression: {
         type: 'string',
-        description: 'The mathematical expression to evaluate (e.g., "2 + 2", "sqrt(16)", "10 * 5 + 3")'
-      }
+        description:
+          'The mathematical expression to evaluate (e.g., "2 + 2", "sqrt(16)", "10 * 5 + 3")',
+      },
     },
-    required: ['expression']
+    required: ['expression'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { expression } = args;
 
@@ -21,22 +22,12 @@ export const calculateTool = {
       const safePattern = /^[\d\s+\-*/().%^sqrtabssincotan,]+$/i;
       if (!safePattern.test(expression)) {
         return {
-          error: 'Invalid expression. Only numbers and basic math operations are allowed.'
+          error: 'Invalid expression. Only numbers and basic math operations are allowed.',
         };
       }
 
-      // Create safe math context
-      const mathFunctions = {
-        sqrt: Math.sqrt,
-        abs: Math.abs,
-        sin: Math.sin,
-        cos: Math.cos,
-        tan: Math.tan,
-        pow: Math.pow
-      };
-
       // Replace function names with Math equivalents
-      let safeExpression = expression
+      const safeExpression = expression
         .replace(/sqrt\(/g, 'Math.sqrt(')
         .replace(/abs\(/g, 'Math.abs(')
         .replace(/sin\(/g, 'Math.sin(')
@@ -50,14 +41,13 @@ export const calculateTool = {
       return {
         expression: expression,
         result: result,
-        formatted: `${expression} = ${result}`
+        formatted: `${expression} = ${result}`,
       };
-
     } catch (error) {
       return {
         error: `Calculation error: ${error.message}`,
-        expression: args.expression
+        expression: args.expression,
       };
     }
-  }
+  },
 };

@@ -10,26 +10,26 @@ export const hashTool = {
     properties: {
       text: {
         type: 'string',
-        description: 'The text to hash'
+        description: 'The text to hash',
       },
       algorithm: {
         type: 'string',
-        description: 'Hash algorithm: "md5", "sha256", "sha512" (default: "sha256")'
-      }
+        description: 'Hash algorithm: "md5", "sha256", "sha512" (default: "sha256")',
+      },
     },
-    required: ['text']
+    required: ['text'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { text, algorithm = 'sha256' } = args;
       const algo = algorithm.toLowerCase();
 
       const supportedAlgorithms = ['md5', 'sha256', 'sha512', 'sha1'];
-      
+
       if (!supportedAlgorithms.includes(algo)) {
         return {
           error: `Unsupported algorithm: ${algorithm}`,
-          supported: supportedAlgorithms.join(', ')
+          supported: supportedAlgorithms.join(', '),
         };
       }
 
@@ -39,13 +39,12 @@ export const hashTool = {
         algorithm: algo,
         input_length: text.length,
         hash: hash,
-        summary: `${algo.toUpperCase()} hash: ${hash}`
+        summary: `${algo.toUpperCase()} hash: ${hash}`,
       };
-
     } catch (error) {
       return {
-        error: `Hash generation failed: ${error.message}`
+        error: `Hash generation failed: ${error.message}`,
       };
     }
-  }
+  },
 };

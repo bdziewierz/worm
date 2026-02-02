@@ -10,29 +10,29 @@ export const passwordTool = {
     properties: {
       length: {
         type: 'number',
-        description: 'Password length (default: 16, min: 8, max: 64)'
+        description: 'Password length (default: 16, min: 8, max: 64)',
       },
       include_symbols: {
         type: 'boolean',
-        description: 'Include special characters (default: true)'
+        description: 'Include special characters (default: true)',
       },
       include_numbers: {
         type: 'boolean',
-        description: 'Include numbers (default: true)'
+        description: 'Include numbers (default: true)',
       },
       include_uppercase: {
         type: 'boolean',
-        description: 'Include uppercase letters (default: true)'
-      }
-    }
+        description: 'Include uppercase letters (default: true)',
+      },
+    },
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const {
         length = 16,
         include_symbols = true,
         include_numbers = true,
-        include_uppercase = true
+        include_uppercase = true,
       } = args;
 
       const len = Math.min(Math.max(length, 8), 64);
@@ -70,15 +70,14 @@ export const passwordTool = {
           lowercase: true,
           uppercase: include_uppercase,
           numbers: include_numbers,
-          symbols: include_symbols
+          symbols: include_symbols,
         },
-        summary: `Generated ${password.length}-character ${len >= 16 ? 'strong' : 'medium'} password`
+        summary: `Generated ${password.length}-character ${len >= 16 ? 'strong' : 'medium'} password`,
       };
-
     } catch (error) {
       return {
-        error: `Password generation failed: ${error.message}`
+        error: `Password generation failed: ${error.message}`,
       };
     }
-  }
+  },
 };

@@ -1,6 +1,6 @@
 export const textAnalyzerTool = {
-  name: 'analyze_text',
-  description: 'Analyze text: count words, characters, sentences, estimate reading time',
+  name: 'text_length_analyzer',
+  description: 'Analyze length of text: count words, characters, sentences, estimate reading time',
   category: 'utility',
   keywords: ['text', 'analyze', 'count', 'words', 'characters', 'reading', 'statistics'],
   parameters: {
@@ -8,17 +8,20 @@ export const textAnalyzerTool = {
     properties: {
       text: {
         type: 'string',
-        description: 'The text to analyze'
-      }
+        description: 'The text to analyze for length and other statistics',
+      },
     },
-    required: ['text']
+    required: ['text'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { text } = args;
 
       // Word count
-      const words = text.trim().split(/\s+/).filter(word => word.length > 0);
+      const words = text
+        .trim()
+        .split(/\s+/)
+        .filter(word => word.length > 0);
       const wordCount = words.length;
 
       // Character counts
@@ -37,9 +40,10 @@ export const textAnalyzerTool = {
       const readingTimeMinutes = Math.ceil(wordCount / 225);
 
       // Average word length
-      const avgWordLength = words.length > 0 
-        ? (words.reduce((sum, word) => sum + word.length, 0) / words.length).toFixed(1)
-        : 0;
+      const avgWordLength =
+        words.length > 0
+          ? (words.reduce((sum, word) => sum + word.length, 0) / words.length).toFixed(1)
+          : 0;
 
       // Most common words (top 5, excluding very short words)
       const wordFreq = {};
@@ -49,7 +53,7 @@ export const textAnalyzerTool = {
           wordFreq[normalized] = (wordFreq[normalized] || 0) + 1;
         }
       });
-      
+
       const topWords = Object.entries(wordFreq)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
@@ -64,13 +68,12 @@ export const textAnalyzerTool = {
         reading_time: `${readingTimeMinutes} min`,
         avg_word_length: avgWordLength,
         top_words: topWords,
-        summary: `${wordCount} words, ${charCount} chars, ${sentenceCount} sentences, ~${readingTimeMinutes} min read`
+        summary: `${wordCount} words, ${charCount} chars, ${sentenceCount} sentences, ~${readingTimeMinutes} min read`,
       };
-
     } catch (error) {
       return {
-        error: `Text analysis failed: ${error.message}`
+        error: `Text analysis failed: ${error.message}`,
       };
     }
-  }
+  },
 };

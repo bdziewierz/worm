@@ -8,12 +8,12 @@ export const weatherTool = {
     properties: {
       location: {
         type: 'string',
-        description: 'The city or location to get weather for (e.g., "London", "New York")'
-      }
+        description: 'The city or location to get weather for (e.g., "London", "New York")',
+      },
     },
-    required: ['location']
+    required: ['location'],
   },
-  execute: async (args) => {
+  execute: async args => {
     try {
       const { location } = args;
 
@@ -70,7 +70,7 @@ export const weatherTool = {
         86: 'Heavy snow showers',
         95: 'Thunderstorm',
         96: 'Thunderstorm with slight hail',
-        99: 'Thunderstorm with heavy hail'
+        99: 'Thunderstorm with heavy hail',
       };
 
       const weatherDescription = weatherDescriptions[current.weather_code] || 'Unknown';
@@ -83,15 +83,13 @@ export const weatherTool = {
         conditions: weatherDescription,
         wind_speed: `${current.wind_speed_10m} km/h`,
         precipitation: `${current.precipitation} mm`,
-        summary: `Weather in ${name}, ${country}: ${weatherDescription}, ${current.temperature_2m}°C (feels like ${current.apparent_temperature}°C), humidity ${current.relative_humidity_2m}%, wind ${current.wind_speed_10m} km/h`
+        summary: `Weather in ${name}, ${country}: ${weatherDescription}, ${current.temperature_2m}°C (feels like ${current.apparent_temperature}°C), humidity ${current.relative_humidity_2m}%, wind ${current.wind_speed_10m} km/h`,
       };
-
     } catch (error) {
       return {
         error: `Weather lookup failed: ${error.message}`,
-        location: args.location
+        location: args.location,
       };
     }
-  }
+  },
 };
-
