@@ -17,6 +17,7 @@ import { distanceTool } from './distance.js';
 import { rememberTool } from './remember.js';
 import { recallTool } from './recall.js';
 import { fetchTool } from './fetch.js';
+import { cronTool } from './cron.js';
 
 // Parse core tools from environment (comma-separated list)
 function getCoreToolNames() {
@@ -51,6 +52,7 @@ export function getTools() {
     rememberTool,
     recallTool,
     fetchTool,
+    cronTool,
   ];
 
   const coreToolNames = getCoreToolNames();

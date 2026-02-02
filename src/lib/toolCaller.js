@@ -123,7 +123,12 @@ export class ToolCaller {
     return responseSanitiser(response?.message?.content || '');
   }
 
-  async run(messages, tools, userId = null) {
+  async run(messages, tools, context = {}) {
+    const execContext = {
+      userId: context?.userId ?? null,
+      roomId: context?.roomId ?? null,
+      services: context?.services || {},
+    };
     const decision = await this._routeTools(messages, tools);
 
     if (!decision.tool_calls || decision.tool_calls.length === 0) {
@@ -158,9 +163,13 @@ export class ToolCaller {
       }
       try {
         const args = argMap.get(String(toolName)) || {};
-        const context = { userId };
+        const toolContext = {
+          userId: execContext.userId,
+          roomId: execContext.roomId,
+          services: execContext.services,
+        };
         console.log(`   🔧 ${tool.name}(${JSON.stringify(args)})`);
-        const result = await tool.execute(args, context);
+        const result = await tool.execute(args, toolContext);
         console.log(
           `   ✓ ${tool.name} → ${JSON.stringify(result).substring(0, 100)}${JSON.stringify(result).length > 100 ? '...' : ''}`
         );

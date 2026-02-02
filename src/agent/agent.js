@@ -15,6 +15,7 @@ export class Agent {
     this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : 5;
     this.toolCaller = new ToolCaller(ollamaClient);
     this.memory = new Memory();
+    this.services = config.services || {};
   }
 
   async _buildSystemPrompt(userName = null) {
@@ -46,7 +47,9 @@ export class Agent {
     return prompt;
   }
 
-  async processMessage(userMessage, userName = null) {
+  async processMessage(userMessage, metadata = {}) {
+    const { userId = null, roomId = null } = metadata || {};
+    const userName = userId;
     // Add user message to history
     this.conversationHistory.push({
       role: 'user',
@@ -67,7 +70,11 @@ export class Agent {
       let assistantMessage;
 
       if (this.tools.length > 0) {
-        assistantMessage = await this.toolCaller.run(messages, this.tools, userName);
+        assistantMessage = await this.toolCaller.run(messages, this.tools, {
+          userId,
+          roomId,
+          services: this.services,
+        });
       } else {
         const response = await this.ollama.chat(messages);
         assistantMessage = responseSanitiser(response?.message?.content);

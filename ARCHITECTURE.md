@@ -401,6 +401,72 @@ Tools that fit consumer-grade hardware constraints (compact outputs, stateless, 
 6. **Safe**: Input validation, no arbitrary code execution
 7. **Focused**: Single purpose, not multi-function tools
 
+### Cron Tool & Scheduler
+
+**Goal**: Let trusted users ask WORM to run recurring commands (for example, "every morning ask for the BTC price") without keeping their Matrix client online. The `cron` tool gives the LLM a single entry point to create, list, and cancel those jobs while the runtime handles durability and execution.
+
+#### Components
+
+- `src/tools/cron.js`
+  - Multi-action tool with an `action` enum (`schedule`, `list`, `cancel`).
+  - Validates concise commands (<300 chars), minimum interval (5 minutes), and per-user job caps (max 5 active) before delegating.
+  - Delegates all stateful work to the service layer; the tool stays pure.
+- `src/lib/cronStore.js`
+  - JSON-backed persistence modeled after `Memory`, but scoped to scheduled jobs.
+  - Stores each user's jobs in `memory/cron/<user-hash>.json` with write-through updates and FIFO eviction when caps are exceeded.
+- `src/lib/cronService.js`
+  - In-memory registry of active jobs hydrated from cronStore on startup.
+  - Public API: `schedule(job)`, `cancel(jobId, userId)`, `list(userId)`, `restore()`.
+  - Wraps Node timers in a single scheduler loop that throttles concurrent executions (max one fired job per second) to protect low-VRAM devices.
+- Synthetic message bridge (`src/lib/scheduledMessageDispatcher.js`)
+  - Converts due jobs into pseudo-user messages so the agent, ToolCaller, and Matrix clients handle them like normal traffic.
+  - Method signature: `dispatch({ userId, text, jobId })` → agent → Matrix room.
+
+#### Job Data Model
+
+```json
+{
+  "id": "uuid",
+  "userId": "@alice:matrix.org",
+  "intervalMinutes": 30,
+  "command": "Check BTC price and summarize",
+  "startAt": "2026-02-02T08:00:00.000Z",
+  "lastRunAt": "2026-02-02T09:00:00.000Z",
+  "nextRunAt": "2026-02-02T09:30:00.000Z",
+  "maxRuns": 20,
+  "runCount": 4,
+  "status": "active"
+}
+```
+
+- `intervalMinutes` keeps schemas small and LLM-friendly. Advanced cron syntax can be introduced later without breaking existing jobs.
+- `maxRuns` (default infinity) plus optional `endAt` guarantee deterministic shutdown.
+- `nextRunAt` is stored to avoid recomputing schedules for every tick.
+
+#### Scheduling Flow
+
+1. User request → LLM calls `cron` with `{ action: 'schedule', command, intervalMinutes, startAt?, maxRuns? }`.
+2. Tool validation → ensures `context.userId`, clamps intervals, enforces per-user caps.
+3. Persist + register → `cronService.schedule()` writes to cronStore and arms the timer.
+4. Tick loop → when `Date.now() >= nextRunAt`, cronService enqueues the job.
+5. Dispatch → scheduledMessageDispatcher feeds the command into the agent as a synthetic message; the usual ToolCaller + Matrix reply path handles the response.
+6. Bookkeeping → `lastRunAt`, `runCount`, and `nextRunAt` update; job transitions to `completed` once limits are met.
+
+#### Listing and Cancellation
+
+- `{ action: 'list' }` returns compact rows: job ID, interval, next run ISO timestamp, remaining executions.
+- `{ action: 'cancel', jobId }` marks the job as `cancelled`, clears timers, and persists state. Responses state whether a job was found.
+
+#### Operational Constraints
+
+- **Durability**: `cronService.restore()` runs before Matrix login so jobs survive restarts.
+- **Throttling**: Due jobs enter an in-memory FIFO; the dispatcher pops at most one per second to prevent tool-call storms.
+- **Safety**: Jobs inherit the creator's `userId`, so existing allowlist rules and history caps still apply. No scheduling for anonymous contexts.
+- **Observability**: Lifecycle logs (`scheduled`, `fired`, `cancelled`, `errored`) include jobId and userId. Execution failures DM the owner with the error payload.
+- **Testing**: Unit tests mock timers to cover schedule, restore, cancellation, and dispatch without waiting for real time.
+
+This split keeps the cron tool stateless while delegating long-lived responsibilities to purpose-built services, aligning with WORM's separation-of-concerns constraints.
+
 **Tools to AVOID (context window problems):**
 
 - ❌ `read_large_file` - Outputs too large

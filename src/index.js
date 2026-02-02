@@ -6,6 +6,9 @@ import { OllamaClient } from './clients/ollama.js';
 import { MatrixClient } from './clients/matrix.js';
 import { Agent } from './agent/agent.js';
 import { getTools } from './tools/index.js';
+import { CronStore } from './lib/cronStore.js';
+import { CronService } from './lib/cronService.js';
+import { ScheduledMessageDispatcher } from './lib/scheduledMessageDispatcher.js';
 
 console.log(chalk.blue.bold('\n🤖 Starting WORM Personal Assistant...\n'));
 
@@ -54,6 +57,7 @@ async function main() {
     console.log(chalk.green('✓ Matrix connected\n'));
 
     // Initialize agent with tools
+    const services = {};
     const tools = getTools();
     const agent = new Agent(ollamaClient, tools, {
       maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5,
@@ -61,6 +65,7 @@ async function main() {
       personality: process.env.PERSONALITY,
       background: process.env.BACKGROUND,
       speakingStyle: process.env.SPEAKING_STYLE,
+      services,
     });
     const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
       ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
@@ -69,6 +74,13 @@ async function main() {
       ? `Allowed users: ${process.env.MATRIX_ALLOWED_USERS}`
       : 'Allowing all users';
     console.log(chalk.gray(`${roomsMsg}\n${usersMsg}\n`));
+
+    const cronStore = new CronStore();
+    const dispatcher = new ScheduledMessageDispatcher({ agent, matrixClient });
+    const cronService = new CronService({ store: cronStore, dispatcher });
+    services.cron = cronService;
+    const restoredCount = await cronService.restore();
+    console.log(chalk.gray(`⏰ Restored ${restoredCount} scheduled job(s)`));
 
     // Handle Matrix messages
     matrixClient.onMessage(async message => {
@@ -80,7 +92,10 @@ async function main() {
 
       try {
         await matrixClient.setTyping(message.roomId, true);
-        const response = await agent.processMessage(message.text, message.sender);
+        const response = await agent.processMessage(message.text, {
+          userId: message.sender,
+          roomId: message.roomId,
+        });
         await matrixClient.sendMessage(response, message.roomId);
         console.log(chalk.green(`✓ Sent response\n`));
       } catch (error) {
@@ -97,6 +112,7 @@ async function main() {
     // Graceful shutdown
     process.on('SIGINT', async () => {
       console.log(chalk.yellow('\n\n👋 Shutting down gracefully...'));
+      await cronService.shutdown();
       await matrixClient.disconnect();
       process.exit(0);
     });

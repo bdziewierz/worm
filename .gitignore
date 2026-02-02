@@ -6,4 +6,5 @@ dist/
 coverage/
 models/
 *.onnx
-memory/*.json
+memory/
+*.code-workspace
