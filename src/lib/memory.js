@@ -16,7 +16,7 @@ export class Memory {
   async _ensureMemoryDir() {
     try {
       await fs.mkdir(MEMORY_DIR, { recursive: true });
-    } catch (error) {
+    } catch {
       // Directory might already exist
     }
   }
@@ -32,7 +32,7 @@ export class Memory {
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(data);
-    } catch (error) {
+    } catch {
       // File doesn't exist yet, return empty structure
       return {
         userId: userId,
@@ -74,7 +74,7 @@ export class Memory {
     const filePath = this._getUserFilePath(userId);
     try {
       await fs.unlink(filePath);
-    } catch (error) {
+    } catch {
       // File might not exist, ignore
     }
   }

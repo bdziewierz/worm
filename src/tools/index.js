@@ -16,6 +16,7 @@ import { loremTool } from './lorem.js';
 import { distanceTool } from './distance.js';
 import { rememberTool } from './remember.js';
 import { recallTool } from './recall.js';
+import { fetchTool } from './fetch.js';
 
 // Parse core tools from environment (comma-separated list)
 function getCoreToolNames() {
@@ -49,6 +50,7 @@ export function getTools() {
     distanceTool,
     rememberTool,
     recallTool,
+    fetchTool,
   ];
 
   const coreToolNames = getCoreToolNames();
