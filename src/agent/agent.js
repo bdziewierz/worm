@@ -8,6 +8,8 @@ export class Agent {
     this.conversationHistory = [];
     this.name = config.name || 'WORM Assistant';
     this.personality = config.personality || 'Helpful, concise, and direct.';
+    this.background = config.background || '';
+    this.speakingStyle = config.speakingStyle || '';
     this.systemPrompt = this._buildSystemPrompt();
     this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : 5;
     this.toolCaller = new ToolCaller(ollamaClient);
@@ -15,7 +17,17 @@ export class Agent {
 
   _buildSystemPrompt(userName = null) {
     const now = new Date().toISOString();
-    let prompt = `You are ${this.name}. Personality: ${this.personality} Current time: ${now}`;
+    let prompt = `You are ${this.name}. Personality: ${this.personality}`;
+
+    if (this.background) {
+      prompt += ` ${this.background}`;
+    }
+
+    if (this.speakingStyle) {
+      prompt += ` Speaking style: ${this.speakingStyle}`;
+    }
+
+    prompt += ` Current time: ${now}`;
 
     if (userName) {
       prompt += `\n\nYou are talking to: ${userName}`;

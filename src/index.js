@@ -59,6 +59,8 @@ async function main() {
       maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5,
       name: process.env.NAME,
       personality: process.env.PERSONALITY,
+      background: process.env.BACKGROUND,
+      speakingStyle: process.env.SPEAKING_STYLE,
     });
     const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
       ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
