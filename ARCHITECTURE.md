@@ -426,7 +426,7 @@ Tools that fit consumer-grade hardware constraints (compact outputs, stateless, 
 
 ```json
 {
-  "id": "uuid",
+  "id": "1",
   "userId": "@alice:matrix.org",
   "intervalMinutes": 30,
   "command": "Check BTC price and summarize",
@@ -455,6 +455,7 @@ Tools that fit consumer-grade hardware constraints (compact outputs, stateless, 
 #### Listing and Cancellation
 
 - `{ action: 'list' }` returns compact rows: job ID, interval, next run ISO timestamp, remaining executions.
+- Jobs are numbered per user from `1` to `5`, so cancelling a task is as simple as saying “Cancel job 3.” IDs are recycled when a slot is freed.
 - `{ action: 'cancel', jobId }` marks the job as `cancelled`, clears timers, and persists state. Responses state whether a job was found.
 
 #### Operational Constraints

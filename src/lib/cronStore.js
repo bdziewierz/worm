@@ -85,6 +85,18 @@ export class CronStore {
     return true;
   }
 
+  async deleteAllJobs(userId) {
+    if (!userId) {
+      return;
+    }
+    const filePath = this._getUserFilePath(userId);
+    try {
+      await fs.unlink(filePath);
+    } catch {
+      // File might not exist, ignore
+    }
+  }
+
   async listJobs(userId) {
     if (!userId) {
       return [];

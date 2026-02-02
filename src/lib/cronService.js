@@ -1,5 +1,3 @@
-import { randomUUID } from 'crypto';
-
 const DEFAULT_MIN_INTERVAL_MINUTES = 5;
 const DEFAULT_MAX_JOBS_PER_USER = 5;
 const DEFAULT_THROTTLE_MS = 1000;
@@ -35,6 +33,22 @@ export class CronService {
     this.processingQueue = false;
   }
 
+  _jobKey(userId, jobId) {
+    return `${userId}::${jobId}`;
+  }
+
+  _nextJobId(userId) {
+    const activeJobs = this._getJobsForUser(userId).filter(job => job.status === 'active');
+    const used = new Set(activeJobs.map(job => job.id));
+    for (let slot = 1; slot <= this.maxJobsPerUser; slot += 1) {
+      const id = String(slot);
+      if (!used.has(id)) {
+        return id;
+      }
+    }
+    return null;
+  }
+
   _intervalToMs(minutes) {
     return minutes * 60 * 1000;
   }
@@ -68,13 +82,42 @@ export class CronService {
 
   async restore() {
     const persistedJobs = await this.store.getAllJobs();
+    const jobsByUser = new Map();
     for (const job of persistedJobs) {
-      this.jobs.set(job.id, job);
-      if (job.status === 'active') {
+      if (job.status !== 'active') {
+        continue;
+      }
+      if (!jobsByUser.has(job.userId)) {
+        jobsByUser.set(job.userId, []);
+      }
+      jobsByUser.get(job.userId).push(job);
+    }
+
+    let restoredCount = 0;
+    for (const [userId, jobs] of jobsByUser.entries()) {
+      jobs.sort((a, b) => {
+        const aTime = a.nextRunAt ? Date.parse(a.nextRunAt) : Date.parse(a.createdAt || 0);
+        const bTime = b.nextRunAt ? Date.parse(b.nextRunAt) : Date.parse(b.createdAt || 0);
+        return aTime - bTime;
+      });
+      let slot = 1;
+      for (const job of jobs) {
+        if (slot > this.maxJobsPerUser) {
+          // Exceeded capacity; cancel the extra job to avoid undefined behavior
+          job.status = 'cancelled';
+          await this.store.deleteJob(job.id, job.userId);
+          continue;
+        }
+        job.id = String(slot);
+        slot += 1;
+        await this.store.upsertJob(job);
+        const key = this._jobKey(userId, job.id);
+        this.jobs.set(key, job);
         this._armJob(job);
+        restoredCount += 1;
       }
     }
-    return persistedJobs.length;
+    return restoredCount;
   }
 
   async scheduleJob({ userId, roomId, command, intervalMinutes, startAt = null, maxRuns = null }) {
@@ -117,8 +160,13 @@ export class CronService {
     const createdAt = toIso(now);
     const normalizedMaxRuns = Number.isInteger(maxRuns) && maxRuns > 0 ? maxRuns : null;
 
+    const jobId = this._nextJobId(userId);
+    if (!jobId) {
+      throw new Error('No job slots available. Cancel an existing job first.');
+    }
+
     const job = {
-      id: randomUUID(),
+      id: jobId,
       userId,
       roomId,
       command: command.trim(),
@@ -134,13 +182,15 @@ export class CronService {
     };
 
     await this.store.upsertJob(job);
-    this.jobs.set(job.id, job);
+    const key = this._jobKey(userId, job.id);
+    this.jobs.set(key, job);
     this._armJob(job);
     return this._formatJob(job);
   }
 
   async cancelJob(jobId, userId) {
-    const job = this.jobs.get(jobId);
+    const key = this._jobKey(userId, jobId);
+    const job = this.jobs.get(key);
     if (!job || job.userId !== userId) {
       return { success: false, message: 'Job not found.' };
     }
@@ -151,8 +201,9 @@ export class CronService {
     job.status = 'cancelled';
     job.nextRunAt = null;
     job.updatedAt = toIso(Date.now());
-    this._clearTimer(job.id);
-    await this.store.upsertJob(job);
+    this._clearTimer(key);
+    await this.store.deleteJob(job.id, userId);
+    this.jobs.delete(key);
     return { success: true, job: this._formatJob(job) };
   }
 
@@ -168,16 +219,17 @@ export class CronService {
     return sorted.map(job => this._formatJob(job));
   }
 
-  _clearTimer(jobId) {
-    const existing = this.timers.get(jobId);
+  _clearTimer(timerKey) {
+    const existing = this.timers.get(timerKey);
     if (existing) {
       clearTimeout(existing);
-      this.timers.delete(jobId);
+      this.timers.delete(timerKey);
     }
   }
 
   _armJob(job) {
-    this._clearTimer(job.id);
+    const timerKey = this._jobKey(job.userId, job.id);
+    this._clearTimer(timerKey);
     if (job.status !== 'active') {
       return;
     }
@@ -186,12 +238,12 @@ export class CronService {
       return;
     }
     const delay = Math.max(nextTs - Date.now(), 0);
-    const timerId = setTimeout(() => this._handleDueJob(job.id), delay);
-    this.timers.set(job.id, timerId);
+    const timerId = setTimeout(() => this._handleDueJob(timerKey), delay);
+    this.timers.set(timerKey, timerId);
   }
 
-  _handleDueJob(jobId) {
-    const job = this.jobs.get(jobId);
+  _handleDueJob(jobKey) {
+    const job = this.jobs.get(jobKey);
     if (!job || job.status !== 'active') {
       return;
     }
@@ -224,23 +276,42 @@ export class CronService {
       console.error(`Cron job ${job.id} failed: ${error.message}`);
     }
 
-    job.lastRunAt = toIso(Date.now());
+    const nowIso = toIso(Date.now());
+    job.lastRunAt = nowIso;
     job.runCount += 1;
 
     const reachedLimit = job.maxRuns !== null && job.runCount >= job.maxRuns;
     if (reachedLimit) {
       job.status = 'completed';
       job.nextRunAt = null;
-      this._clearTimer(job.id);
+      const key = this._jobKey(job.userId, job.id);
+      this._clearTimer(key);
+      await this.store.deleteJob(job.id, job.userId);
+      this.jobs.delete(key);
     } else {
       const nextRunMs = Date.now() + this._intervalToMs(job.intervalMinutes);
       job.nextRunAt = toIso(nextRunMs);
+      job.updatedAt = nowIso;
+      await this.store.upsertJob(job);
+      const key = this._jobKey(job.userId, job.id);
+      this.jobs.set(key, job);
       this._armJob(job);
     }
+  }
 
-    job.updatedAt = toIso(Date.now());
-    await this.store.upsertJob(job);
-    this.jobs.set(job.id, job);
+  async clearJobs(userId) {
+    if (!userId) {
+      throw new Error('userId is required');
+    }
+    const jobs = this._getJobsForUser(userId);
+    for (const job of jobs) {
+      const key = this._jobKey(job.userId, job.id);
+      this._clearTimer(key);
+      this.jobs.delete(key);
+    }
+    this.queue = this.queue.filter(job => job.userId !== userId);
+    await this.store.deleteAllJobs(userId);
+    return { removed: jobs.length };
   }
 
   async shutdown() {

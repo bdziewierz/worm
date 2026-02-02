@@ -1,8 +1,8 @@
-const ACTIONS = ['schedule', 'list', 'cancel'];
+const ACTIONS = ['schedule', 'list', 'cancel', 'clear'];
 const MIN_INTERVAL_MINUTES = 5;
 const MAX_INTERVAL_MINUTES = 24 * 60;
 const MAX_COMMAND_LENGTH = 300;
-const MAX_JOBS_PER_USER = 5;
+const DEFAULT_MAX_JOBS_PER_USER = 5;
 
 function formatJob(job) {
   if (!job) {
@@ -52,7 +52,7 @@ function validateStartAt(startAt) {
 export const cronTool = {
   name: 'cron',
   description:
-    'Schedule, list, or cancel recurring commands that the assistant will run automatically in this room.',
+    'Schedule, list, cancel, or clear recurring commands that the assistant will run automatically in this room. Jobs are numbered per user (1-5) for easy cancellation.',
   category: 'automation',
   keywords: ['cron', 'schedule', 'recurring', 'automation', 'timer'],
   parameters: {
@@ -81,7 +81,7 @@ export const cronTool = {
       },
       jobId: {
         type: 'string',
-        description: 'Existing job ID (required for cancel).',
+        description: 'Job number shown in cron list (1-5). Required for cancel.',
       },
     },
     required: ['action'],
@@ -107,7 +107,7 @@ export const cronTool = {
       }
 
       if (action === 'cancel') {
-        const jobId = (args.jobId || '').trim();
+        const jobId = String(args.jobId ?? '').trim();
         if (!jobId) {
           return { error: 'jobId is required to cancel a job.' };
         }
@@ -116,6 +116,19 @@ export const cronTool = {
           return { error: result.message };
         }
         return { success: true, job: formatJob(result.job) };
+      }
+
+      if (action === 'clear') {
+        const result = await cronService.clearJobs(userId);
+        const removed = result.removed || 0;
+        return {
+          success: true,
+          removed,
+          message:
+            removed > 0
+              ? `Cleared ${removed} scheduled job${removed === 1 ? '' : 's'}.`
+              : 'No scheduled jobs to clear.',
+        };
       }
 
       // schedule
@@ -149,9 +162,10 @@ export const cronTool = {
         maxRuns,
       });
 
+      const limit = cronService.maxJobsPerUser || DEFAULT_MAX_JOBS_PER_USER;
       return {
         success: true,
-        info: `Scheduled every ${intervalMinutes} minutes. You can have up to ${MAX_JOBS_PER_USER} active jobs.`,
+        info: `Scheduled job #${summary.id} every ${intervalMinutes} minutes. You can have up to ${limit} active jobs.`,
         job: formatJob(summary),
       };
     } catch (error) {
