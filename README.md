@@ -51,11 +51,14 @@ OLLAMA_MODEL=llama3.2
 MATRIX_HOMESERVER=https://matrix.org
 MATRIX_USER_ID=@your-bot:matrix.org
 MATRIX_ACCESS_TOKEN=your_access_token_here
-MATRIX_ROOM_ID=!your_room_id:matrix.org
 
 # Security: Comma-separated list of allowed Matrix user IDs (leave empty to allow all)
 # Example: @user1:matrix.org,@user2:matrix.org
 MATRIX_ALLOWED_USERS=
+
+# Security: Comma-separated list of allowed room IDs (leave empty to allow all rooms)
+# Example: !room1:matrix.org,!room2:matrix.org
+MATRIX_ALLOWED_ROOMS=
 
 # Assistant Configuration
 NAME=WORM

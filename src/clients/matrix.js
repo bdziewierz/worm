@@ -2,7 +2,18 @@ import sdk from 'matrix-js-sdk';
 
 export class MatrixClient {
   constructor(config) {
+    if (!config.homeserver) {
+      throw new Error('homeserver is required');
+    }
+    if (!config.userId) {
+      throw new Error('userId is required');
+    }
+    if (!config.accessToken) {
+      throw new Error('accessToken is required');
+    }
+
     this.config = config;
+    this.userId = config.userId;
     this.client = null;
     this.messageHandlers = [];
     this.allowedUsers = this._parseAllowedUsers(config.allowedUsers);
@@ -10,7 +21,14 @@ export class MatrixClient {
   }
 
   _parseAllowedUsers(allowedUsersStr) {
-    if (!allowedUsersStr || allowedUsersStr.trim() === '') {
+    // Handle array input (for testing)
+    if (Array.isArray(allowedUsersStr)) {
+      const trimmed = allowedUsersStr.map(u => u.trim()).filter(u => u.length > 0);
+      return trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Handle string input (from env vars)
+    if (!allowedUsersStr || typeof allowedUsersStr !== 'string' || allowedUsersStr.trim() === '') {
       return null; // null means allow all users
     }
     const users = allowedUsersStr
@@ -21,7 +39,14 @@ export class MatrixClient {
   }
 
   _parseAllowedRooms(allowedRoomsStr) {
-    if (!allowedRoomsStr || allowedRoomsStr.trim() === '') {
+    // Handle array input (for testing)
+    if (Array.isArray(allowedRoomsStr)) {
+      const trimmed = allowedRoomsStr.map(r => r.trim()).filter(r => r.length > 0);
+      return trimmed.length > 0 ? trimmed : null;
+    }
+
+    // Handle string input (from env vars)
+    if (!allowedRoomsStr || typeof allowedRoomsStr !== 'string' || allowedRoomsStr.trim() === '') {
       return null; // null means allow all rooms
     }
     const rooms = allowedRoomsStr
@@ -31,13 +56,24 @@ export class MatrixClient {
     return rooms.length > 0 ? rooms : null; // Return null if empty after filtering
   }
 
-  _isUserAllowed(userId) {
+  isUserAllowed(userId) {
+    const trimmedUserId = userId.trim();
+
+    // Always allow the bot itself
+    if (trimmedUserId === this.userId) {
+      return true;
+    }
+
     // If no allowlist is configured, allow all users
     if (this.allowedUsers === null) {
       return true;
     }
     // Check if user is in the allowlist
-    return this.allowedUsers.includes(userId);
+    return this.allowedUsers.includes(trimmedUserId);
+  }
+
+  _isUserAllowed(userId) {
+    return this.isUserAllowed(userId);
   }
 
   _isRoomAllowed(roomId) {
@@ -47,6 +83,40 @@ export class MatrixClient {
     }
     // Check if room is in the allowlist
     return this.allowedRooms.includes(roomId);
+  }
+
+  shouldProcessMessage(event) {
+    const sender = event.getSender();
+    const roomId = event.getRoomId();
+    const eventType = event.getType();
+    const content = event.getContent();
+
+    // Ignore messages from self
+    if (sender === this.userId) {
+      return false;
+    }
+
+    // Only process room messages
+    if (eventType !== 'm.room.message') {
+      return false;
+    }
+
+    // Check room allowlist
+    if (!this._isRoomAllowed(roomId)) {
+      return false;
+    }
+
+    // Only process text messages
+    if (content.msgtype !== 'm.text') {
+      return false;
+    }
+
+    // Check user allowlist
+    if (!this.isUserAllowed(sender)) {
+      return false;
+    }
+
+    return true;
   }
 
   async connect() {

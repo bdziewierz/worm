@@ -422,11 +422,11 @@ Tools that fit consumer-grade hardware constraints (compact outputs, stateless, 
 - `MATRIX_HOMESERVER` - Matrix server URL
 - `MATRIX_USER_ID` - Bot's Matrix user ID
 - `MATRIX_ACCESS_TOKEN` - Bot's authentication token
-- `MATRIX_ROOM_ID` - Room to monitor for messages
 
 **Optional Variables:**
 
 - `MATRIX_ALLOWED_USERS` - Comma-separated user IDs (empty = allow all)
+- `MATRIX_ALLOWED_ROOMS` - Comma-separated room IDs (empty = allow all rooms)
 - `ASSISTANT_NAME` - Display name for assistant
 
 **Configuration Loading:**

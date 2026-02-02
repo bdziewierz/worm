@@ -28,10 +28,22 @@ export class ToolCaller {
     const startTime = Date.now();
     const toolList = JSON.stringify(this._buildToolList(tools));
     const systemPrompt =
-      `Available tools: ${toolList}\n\n` +
       `Task: Determine if any tools are needed to answer the user's request.\n` +
+      `IMPORTANT: Most messages do NOT need tools. Only use tools for explicit requests.\n\n` +
+      `DO NOT use tools for:\n` +
+      `- Casual conversation, greetings, venting, complaints\n` +
+      `- Questions you can answer from general knowledge\n` +
+      `- Statements that don't ask for anything\n` +
+      `- Emotional expressions or small talk\n\n` +
+      `USE tools only for:\n` +
+      `- Explicit requests for calculations, weather, search, etc.\n` +
+      `- Questions requiring real-time data or computation\n` +
+      `- Clear task requests matching available tools\n\n` +
+      `CRITICAL: Some tools generate data (passwords, UUIDs, hashes). ALWAYS call these tools.\n` +
+      `NEVER simulate or hallucinate their outputs. If user requests password/UUID/hash, call the tool.\n\n` +
       `Rules: If tools needed: Output {"tool_calls": [{"name": "tool_name"}]}. ` +
-      `If no tools needed: Answer directly in plain text, but never say you are not using tools.`;
+      `If no tools needed: Answer directly in plain text, never mention tools.\n\n` +
+      `Available tools: ${toolList}\n`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
