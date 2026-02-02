@@ -210,11 +210,34 @@ Once running, you can interact with your assistant through Matrix:
 
 ## Development Tools
 
-WORM uses modern static analysis and code quality tools to maintain code standards:
+WORM uses modern development practices with comprehensive testing and static analysis:
+
+### Testing
+
+Built with **Node.js native test runner** (no external dependencies)
+
+**Run tests:**
+
+```bash
+npm test                  # Run once
+npm run test:watch        # Watch mode (auto-rerun on changes)
+npm run test:coverage     # With coverage report
+```
+
+### Static Analysis
 
 ### Available Commands
 
 ```bash
+# Running
+npm start                 # Start the assistant
+npm run dev               # Development mode with auto-reload
+
+# Testing
+npm test                  # Run all tests
+npm run test:watch        # Run tests in watch mode
+npm run test:coverage     # Run tests with coverage report
+
 # Code quality checks
 npm run lint              # Run ESLint to check for code issues
 npm run lint:fix          # Auto-fix ESLint issues where possible

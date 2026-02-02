@@ -2,6 +2,12 @@ import { Ollama } from 'ollama';
 
 export class OllamaClient {
   constructor(config) {
+    if (!config.baseUrl) {
+      throw new Error('baseUrl is required');
+    }
+    if (!config.model) {
+      throw new Error('model is required');
+    }
     this.baseUrl = config.baseUrl;
     this.model = config.model;
     this.client = new Ollama({ host: this.baseUrl });

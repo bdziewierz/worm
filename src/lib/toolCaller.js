@@ -30,8 +30,8 @@ export class ToolCaller {
     const systemPrompt =
       `Available tools: ${toolList}\n\n` +
       `Task: Determine if any tools are needed to answer the user's request.\n` +
-      `If tools needed: Output {"tool_calls": [{"name": "tool_name"}]}\n` +
-      `If no tools needed: Answer directly in plain text.`;
+      `Rules: If tools needed: Output {"tool_calls": [{"name": "tool_name"}]}. ` +
+      `If no tools needed: Answer directly in plain text, but never say you are not using tools.`;
 
     const response = await this.ollama.chat([
       { role: 'system', content: systemPrompt },
