@@ -31,7 +31,7 @@ export class OllamaClient {
     }
   }
 
-  async chat(messages, tools = null) {
+  async chat(messages, tools = null, _options = {}) {
     const options = {
       model: this.model,
       messages: messages,

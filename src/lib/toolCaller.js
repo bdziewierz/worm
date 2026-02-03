@@ -45,7 +45,11 @@ export class ToolCaller {
       `If no tools needed: Answer directly in plain text, never mention tools.\n\n` +
       `Available tools: ${toolList}\n`;
 
-    const response = await this.llm.chat([{ role: 'system', content: systemPrompt }, ...messages]);
+    const response = await this.llm.chat(
+      [{ role: 'system', content: systemPrompt }, ...messages],
+      null,
+      { responseFormat: 'json' }
+    );
 
     const duration = Date.now() - startTime;
     const inputTokens = response?.prompt_eval_count || 0;
@@ -81,11 +85,15 @@ export class ToolCaller {
       `Task: Extract arguments for each tool from the conversation.\n` +
       `Output: {"tool_calls": [{"name": "tool_name", "arguments": {...}}]}`;
 
-    const response = await this.llm.chat([
-      { role: 'system', content: systemPrompt },
-      ...messages,
-      { role: 'user', content: userMessage },
-    ]);
+    const response = await this.llm.chat(
+      [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+        { role: 'user', content: userMessage },
+      ],
+      selectedTools,
+      { responseFormat: 'json' }
+    );
 
     const duration = Date.now() - startTime;
     const inputTokens = response?.prompt_eval_count || 0;

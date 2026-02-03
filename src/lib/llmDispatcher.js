@@ -57,10 +57,10 @@ export class LLMDispatcher {
     return true;
   }
 
-  async chat(messages, tools = null) {
+  async chat(messages, tools = null, options = {}) {
     if (typeof this.client?.chat !== 'function') {
       throw new Error(`Active LLM provider "${this.providerLabel}" does not support chat`);
     }
-    return this.client.chat(messages, tools);
+    return this.client.chat(messages, tools, options);
   }
 }

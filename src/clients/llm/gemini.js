@@ -36,6 +36,49 @@ export class GeminiClient {
     return payload;
   }
 
+  _mapTools(tools = null) {
+    if (!Array.isArray(tools) || tools.length === 0) {
+      return undefined;
+    }
+
+    return [
+      {
+        functionDeclarations: tools.map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters || { type: 'object', properties: {} },
+        })),
+      },
+    ];
+  }
+
+  _extractResponseParts(data) {
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    const textParts = [];
+    const toolCalls = [];
+
+    for (const part of parts) {
+      if (part?.text) {
+        textParts.push(part.text);
+      } else if (part?.functionCall) {
+        const name = part.functionCall.name || '';
+        if (!name) {
+          continue;
+        }
+        const args =
+          part.functionCall.args && typeof part.functionCall.args === 'object'
+            ? part.functionCall.args
+            : {};
+        toolCalls.push({ name, arguments: args });
+      }
+    }
+
+    return {
+      text: textParts.join('\n').trim(),
+      tool_calls: toolCalls,
+    };
+  }
+
   async testConnection() {
     const url = `${this.apiBaseUrl}/models/${encodeURIComponent(this.model)}?key=${this.apiKey}`;
     try {
@@ -50,13 +93,21 @@ export class GeminiClient {
     }
   }
 
-  async chat(messages, tools = null) {
+  async chat(messages, tools = null, options = {}) {
     const url = `${this.apiBaseUrl}/models/${encodeURIComponent(this.model)}:generateContent?key=${this.apiKey}`;
     const payload = this._buildPayload(messages);
 
-    // Gemini handles structured tool calling differently; we simply forward messages here.
-    if (tools && tools.length > 0) {
-      payload.tools = tools;
+    const mappedTools = this._mapTools(tools);
+    const hasTools = Boolean(mappedTools);
+    if (mappedTools) {
+      payload.tools = mappedTools;
+    }
+
+    if (options?.responseFormat === 'json' && !hasTools) {
+      payload.generationConfig = {
+        ...(payload.generationConfig || {}),
+        responseMimeType: 'application/json',
+      };
     }
 
     try {
@@ -72,14 +123,17 @@ export class GeminiClient {
         throw new Error(message);
       }
 
-      const text = (data?.candidates?.[0]?.content?.parts || [])
-        .map(part => part?.text || '')
-        .filter(Boolean)
-        .join('\n')
-        .trim();
+      const { text, tool_calls } = this._extractResponseParts(data);
+      let content = text;
+      if (tool_calls.length > 0) {
+        content = JSON.stringify({ tool_calls });
+      }
 
       return {
-        message: { content: text },
+        message: {
+          content,
+          tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+        },
         prompt_eval_count: data?.usageMetadata?.promptTokenCount || 0,
         eval_count: data?.usageMetadata?.candidatesTokenCount || 0,
       };

@@ -55,4 +55,55 @@ describe('MistralClient', () => {
       fetchMock.mock.restore();
     }
   });
+
+  test('normalizes native tool calls into tool_calls JSON', async () => {
+    const fetchMock = mock.method(globalThis, 'fetch', async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: '',
+              tool_calls: [
+                {
+                  function: {
+                    name: 'get_weather',
+                    arguments: '{"location":"Berlin"}',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+        },
+      }),
+    }));
+
+    try {
+      const client = new MistralClient({ apiKey: 'key', model: 'mistral-medium-latest' });
+      const result = await client.chat(
+        [{ role: 'user', content: 'weather' }],
+        [
+          {
+            name: 'get_weather',
+            description: 'Weather tool',
+            parameters: { type: 'object', properties: { location: { type: 'string' } } },
+          },
+        ]
+      );
+
+      assert.ok(result.message.tool_calls);
+      assert.deepStrictEqual(result.message.tool_calls, [
+        { name: 'get_weather', arguments: { location: 'Berlin' } },
+      ]);
+      assert.deepStrictEqual(JSON.parse(result.message.content), {
+        tool_calls: [{ name: 'get_weather', arguments: { location: 'Berlin' } }],
+      });
+    } finally {
+      fetchMock.mock.restore();
+    }
+  });
 });

@@ -19,6 +19,36 @@ export class MistralClient {
     }));
   }
 
+  _normalizeToolCalls(toolCalls = []) {
+    if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+      return [];
+    }
+
+    return toolCalls
+      .map(call => {
+        const name = call?.function?.name || call?.name;
+        if (!name) {
+          return null;
+        }
+
+        let args = call?.function?.arguments ?? call?.arguments ?? {};
+        if (typeof args === 'string') {
+          try {
+            args = JSON.parse(args);
+          } catch {
+            args = {};
+          }
+        }
+
+        if (typeof args !== 'object' || args === null) {
+          args = {};
+        }
+
+        return { name, arguments: args };
+      })
+      .filter(Boolean);
+  }
+
   async testConnection() {
     try {
       const response = await fetch(`${this.apiBaseUrl}/models`, {
@@ -52,7 +82,7 @@ export class MistralClient {
     }
   }
 
-  async chat(messages, tools = null) {
+  async chat(messages, tools = null, _options = {}) {
     const body = {
       model: this.model,
       messages: this._mapMessages(messages),
@@ -79,9 +109,17 @@ export class MistralClient {
         throw new Error(message);
       }
 
-      const text = data?.choices?.[0]?.message?.content || '';
+      const message = data?.choices?.[0]?.message || {};
+      const tool_calls = this._normalizeToolCalls(message?.tool_calls);
+      let text = message?.content?.trim() || '';
+      if (!text && tool_calls.length > 0) {
+        text = JSON.stringify({ tool_calls });
+      }
       return {
-        message: { content: text },
+        message: {
+          content: text,
+          tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+        },
         prompt_eval_count: data?.usage?.prompt_tokens || 0,
         eval_count: data?.usage?.completion_tokens || 0,
       };
