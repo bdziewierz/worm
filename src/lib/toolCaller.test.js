@@ -3,15 +3,15 @@ import assert from 'node:assert';
 import { ToolCaller } from './toolCaller.js';
 
 describe('ToolCaller', () => {
-  let mockOllama;
+  let mockLLM;
   let toolCaller;
 
   beforeEach(() => {
     // Create a mock Ollama client
-    mockOllama = {
+    mockLLM = {
       chat: mock.fn(),
     };
-    toolCaller = new ToolCaller(mockOllama);
+    toolCaller = new ToolCaller(mockLLM);
   });
 
   describe('_buildToolList', () => {
@@ -72,7 +72,7 @@ describe('ToolCaller', () => {
 
   describe('_routeTools', () => {
     test('should identify tools needed', async () => {
-      mockOllama.chat.mock.mockImplementation(async () => ({
+      mockLLM.chat.mock.mockImplementation(async () => ({
         message: {
           content: '{"tool_calls": [{"name": "calculate"}]}',
         },
@@ -90,7 +90,7 @@ describe('ToolCaller', () => {
     });
 
     test('should return direct response when no tools needed', async () => {
-      mockOllama.chat.mock.mockImplementation(async () => ({
+      mockLLM.chat.mock.mockImplementation(async () => ({
         message: {
           content: 'I can answer that directly.',
         },
@@ -110,7 +110,7 @@ describe('ToolCaller', () => {
 
   describe('_requestToolArgs', () => {
     test('should extract arguments for selected tools', async () => {
-      mockOllama.chat.mock.mockImplementation(async () => ({
+      mockLLM.chat.mock.mockImplementation(async () => ({
         message: {
           content: '{"tool_calls": [{"name": "calculate", "arguments": {"expression": "2+2"}}]}',
         },
@@ -145,7 +145,7 @@ describe('ToolCaller', () => {
     });
 
     test('should only include schemas for selected tools', async () => {
-      mockOllama.chat.mock.mockImplementation(async () => ({
+      mockLLM.chat.mock.mockImplementation(async () => ({
         message: { content: '{"tool_calls": []}' },
         prompt_eval_count: 100,
         eval_count: 10,
@@ -163,7 +163,7 @@ describe('ToolCaller', () => {
       await toolCaller._requestToolArgs(messages, selectedTools, tools, 'test');
 
       // Check that the system prompt only includes tool2
-      const callArgs = mockOllama.chat.mock.calls[0].arguments[0];
+      const callArgs = mockLLM.chat.mock.calls[0].arguments[0];
       const systemPrompt = callArgs[0].content;
 
       assert.ok(systemPrompt.includes('tool2'));
@@ -177,7 +177,7 @@ describe('ToolCaller', () => {
       let callCount = 0;
 
       // Mock all three stages
-      mockOllama.chat.mock.mockImplementation(async () => {
+      mockLLM.chat.mock.mockImplementation(async () => {
         callCount++;
 
         if (callCount === 1) {
@@ -228,7 +228,7 @@ describe('ToolCaller', () => {
     });
 
     test('should return direct response when no tools selected', async () => {
-      mockOllama.chat.mock.mockImplementation(async () => ({
+      mockLLM.chat.mock.mockImplementation(async () => ({
         message: { content: 'Hello! How can I help?' },
         prompt_eval_count: 50,
         eval_count: 10,
@@ -240,7 +240,7 @@ describe('ToolCaller', () => {
       const result = await toolCaller.run(messages, tools);
 
       assert.ok(result.includes('help'));
-      assert.strictEqual(mockOllama.chat.mock.calls.length, 1);
+      assert.strictEqual(mockLLM.chat.mock.calls.length, 1);
     });
   });
 });

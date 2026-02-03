@@ -3,8 +3,8 @@ import { responseSanitiser } from '../lib/responseSanitiser.js';
 import { Memory } from '../lib/memory.js';
 
 export class Agent {
-  constructor(ollamaClient, tools = [], config = {}) {
-    this.ollama = ollamaClient;
+  constructor(llmClient, tools = [], config = {}) {
+    this.llm = llmClient;
     this.tools = tools;
     this.conversationHistory = [];
     this.name = config.name || 'WORM Assistant';
@@ -13,7 +13,7 @@ export class Agent {
     this.speakingStyle = config.speakingStyle || '';
     this.systemPrompt = this._buildSystemPrompt();
     this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : 5;
-    this.toolCaller = new ToolCaller(ollamaClient);
+    this.toolCaller = new ToolCaller(llmClient);
     this.memory = new Memory();
     this.services = config.services || {};
   }
@@ -76,7 +76,7 @@ export class Agent {
           services: this.services,
         });
       } else {
-        const response = await this.ollama.chat(messages);
+        const response = await this.llm.chat(messages);
         assistantMessage = responseSanitiser(response?.message?.content);
       }
 

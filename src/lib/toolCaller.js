@@ -1,8 +1,8 @@
 import { responseSanitiser } from './responseSanitiser.js';
 
 export class ToolCaller {
-  constructor(ollamaClient) {
-    this.ollama = ollamaClient;
+  constructor(llmClient) {
+    this.llm = llmClient;
   }
 
   _buildToolList(tools) {
@@ -45,10 +45,7 @@ export class ToolCaller {
       `If no tools needed: Answer directly in plain text, never mention tools.\n\n` +
       `Available tools: ${toolList}\n`;
 
-    const response = await this.ollama.chat([
-      { role: 'system', content: systemPrompt },
-      ...messages,
-    ]);
+    const response = await this.llm.chat([{ role: 'system', content: systemPrompt }, ...messages]);
 
     const duration = Date.now() - startTime;
     const inputTokens = response?.prompt_eval_count || 0;
@@ -84,7 +81,7 @@ export class ToolCaller {
       `Task: Extract arguments for each tool from the conversation.\n` +
       `Output: {"tool_calls": [{"name": "tool_name", "arguments": {...}}]}`;
 
-    const response = await this.ollama.chat([
+    const response = await this.llm.chat([
       { role: 'system', content: systemPrompt },
       ...messages,
       { role: 'user', content: userMessage },
@@ -109,7 +106,7 @@ export class ToolCaller {
       `Task: Answer the user's question using ONLY the results above.\n` +
       `Rules: Do NOT call any tools. Do NOT output JSON. Write a natural, conversational response.`;
 
-    const response = await this.ollama.chat([
+    const response = await this.llm.chat([
       { role: 'system', content: systemPrompt },
       ...messages,
       { role: 'user', content: `Tool results: ${JSON.stringify(toolResults)}` },

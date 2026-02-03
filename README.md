@@ -1,22 +1,27 @@
 # WORM Personal Assistant
 
-A command-line Node.js application that acts as a personal AI assistant using Ollama LLM with Matrix chat integration. The assistant can execute various tools and respond to commands through a Matrix chat room.
+A command-line Node.js application that acts as a personal AI assistant with a pluggable LLM provider layer (Ollama, Google Gemini, OpenAI, Mistral, Anthropic) and Matrix chat integration. The assistant can execute various tools and respond to commands through a Matrix chat room.
 
 ## Features
 
-- 🤖 **AI Agent System**: Powered by Ollama LLM with custom 3-stage tool calling
+- 🤖 **AI Agent System**: Powered by a provider-agnostic LLM layer with custom 3-stage tool calling
 - 💬 **Matrix Chat Integration**: Communicate with your assistant through Matrix
 - 🧠 **Intelligent Tool Routing**: LLM-based tool selection with efficient context usage
 - 🔒 **User Access Control**: Allowlist system to restrict who can use the assistant
 - 🔧 **Extensible Tools**: Easy to add new tools and capabilities
-- 🌐 **Remote Ollama**: Connects to remote Ollama server
+- 🌐 **Flexible LLM Providers**: Works with self-hosted Ollama or cloud APIs (Gemini, OpenAI, Mistral, Anthropic)
+- 🪙 **Token-Efficient Design**: Aggressively optimizes prompts so even local models with tight 4K–8K windows remain viable
 - ⚡ **Modern Node.js**: Uses ESM modules and latest Node.js features (v20+)
 - 📊 **Performance Monitoring**: Token usage and timing metrics for each stage
+
+## LLM Provider Philosophy
+
+WORM treats LLM selection as a deployment-time decision. The `LLM_PROVIDER` environment variable (see configuration section) chooses between Ollama and supported cloud vendors, while the agent always builds compact prompts/tool schemas to conserve context. This token discipline keeps costs low for cloud APIs and ensures the assistant can still run comfortably on constrained local hardware (24GB VRAM / 4K–8K effective context).
 
 ## Prerequisites
 
 - Node.js 22.0.0 or higher
-- Access to a remote Ollama server
+- Access to your preferred LLM provider (self-hosted Ollama endpoint or cloud API key)
 - Matrix account and access token
 - A Matrix room for the assistant
 
@@ -43,9 +48,28 @@ cp .env.example .env
 4. Edit `.env` with your configuration:
 
 ```env
-# Ollama Configuration
+# LLM Provider Selection
+LLM_PROVIDER=ollama               # Options: ollama | gemini | openai | mistral | anthropic
+
+# Ollama Configuration (if LLM_PROVIDER=ollama)
 OLLAMA_BASE_URL=http://your-ollama-server:11434
 OLLAMA_MODEL=llama3.2
+
+# Google Gemini Configuration (if LLM_PROVIDER=gemini)
+GEMINI_API_KEY=your_gemini_key
+GEMINI_MODEL=gemini-1.5-pro-latest
+
+# OpenAI Configuration (if LLM_PROVIDER=openai)
+OPENAI_API_KEY=your_openai_key
+OPENAI_MODEL=gpt-4o-mini
+
+# Mistral Configuration (if LLM_PROVIDER=mistral)
+MISTRAL_API_KEY=your_mistral_key
+MISTRAL_MODEL=mistral-large-latest
+
+# Anthropic Configuration (if LLM_PROVIDER=anthropic)
+ANTHROPIC_API_KEY=your_anthropic_key
+ANTHROPIC_MODEL=claude-3-sonnet
 
 # Matrix Configuration
 MATRIX_HOMESERVER=https://matrix.org
@@ -120,7 +144,7 @@ npm run dev
 
 The assistant will:
 
-1. Connect to your Ollama server
+1. Connect to the configured LLM provider
 2. Join your Matrix room
 3. Listen for messages and respond with AI-powered answers
 4. Execute tools when needed
@@ -309,15 +333,18 @@ git commit --no-verify -m "emergency fix"
 
 ### Connection Issues
 
-- **Ollama**: Ensure your Ollama server is running and accessible
+- **LLM Provider**: Ensure the selected provider endpoint/API key is valid
+  - Ollama example health check:
 
-  ```bash
-  curl http://your-ollama-server:11434/api/tags
-  ```
+    ```bash
+    curl http://your-ollama-server:11434/api/tags
+    ```
+
+  - Cloud APIs: verify the corresponding API key is authorized and the model name matches an available deployment.
 
 - **Matrix**: Verify your access token and room ID are correct
 
-### Model Not Found
+### Model Not Found (Ollama)
 
 If your Ollama model isn't available, list available models:
 

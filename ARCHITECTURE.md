@@ -7,7 +7,7 @@ This document outlines the architectural decisions, design patterns, and key ass
 WORM is a personal AI assistant application that:
 
 - Runs as a command-line Node.js application
-- Uses remote Ollama for LLM capabilities with function calling
+- Uses a pluggable LLM provider layer (Ollama, Google Gemini, OpenAI, Mistral, Anthropic)
 - Integrates with Matrix protocol for user communication
 - Executes tools based on user requests via an agent system
 
@@ -94,6 +94,14 @@ The application is divided into distinct layers:
 - **chalk**: Terminal output formatting
 
 ### Why These Choices?
+
+#### Multi-Provider LLM Fabric
+
+- **Assumption**: Different deployments may favor different LLM vendors (self-hosted vs. cloud)
+- **Rationale**: A pluggable provider layer allows switching models without touching agent logic
+- **Supported Providers**: `ollama`, `gemini`, `openai`, `mistral`, `anthropic`
+- **Selection Mechanism**: `.env` variable `LLM_PROVIDER` determines active provider at runtime
+- **Configuration Pattern**: Provider-specific env vars (API keys, base URLs, model IDs) remain isolated
 
 #### Ollama (Remote)
 
@@ -398,8 +406,86 @@ Tools that fit consumer-grade hardware constraints (compact outputs, stateless, 
 3. **Error Resilient**: Always return something, even on failure
 4. **Fast Execution**: Complete in <2 seconds to avoid timeout
 5. **Stateless**: No persistent state between calls (except database-backed tools)
-6. **Safe**: Input validation, no arbitrary code execution
-7. **Focused**: Single purpose, not multi-function tools
+
+## LLM Provider Architecture (Multi-Cloud)
+
+### Overview
+
+To support multiple LLM backends, WORM introduces a provider-agnostic abstraction layer. The agent and ToolCaller interact with an `LLMProvider` interface rather than individual SDKs. Each provider implementation encapsulates connection details, authentication, and capability quirks (tool calling, function calling, streaming availability).
+
+```
+Agent → ToolCaller → LLMRouter → (Ollama | Gemini | OpenAI | Mistral | Anthropic)
+```
+
+### Provider Interface
+
+All providers implement a common shape:
+
+```javascript
+class BaseProvider {
+  async testConnection();              // Validate credentials/model availability
+  async chat({ messages, tools });     // Return assistant text + tool directives
+  supportsToolCalling = boolean;       // Indicates native function calling support
+}
+```
+
+- **Initialization**: `LLMRouter` reads `LLM_PROVIDER` and instantiates the matching class with provider-specific config from `.env`.
+- **Tool Compatibility**: If a provider lacks native function calling, the router falls back to ToolCaller’s JSON parsing.
+- **Error Handling**: Providers standardize errors (message + optional retriable flag) so the agent can react consistently.
+
+### Environment Configuration
+
+| Provider      | `LLM_PROVIDER` value | Required env vars                                                 |
+| ------------- | -------------------- | ----------------------------------------------------------------- |
+| Ollama        | `ollama`             | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`                                 |
+| Google Gemini | `gemini`             | `GEMINI_API_KEY`, `GEMINI_MODEL` (e.g., `gemini-1.5-pro-latest`)  |
+| OpenAI        | `openai`             | `OPENAI_API_KEY`, `OPENAI_MODEL` (e.g., `gpt-4o-mini`)            |
+| Mistral       | `mistral`            | `MISTRAL_API_KEY`, `MISTRAL_MODEL` (e.g., `mistral-large-latest`) |
+| Anthropic     | `anthropic`          | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (e.g., `claude-3-sonnet`)  |
+
+Optional knobs shared across providers:
+
+- `LLM_TIMEOUT_MS` – request timeout override
+- `LLM_MAX_TOKENS` – output length cap
+- `LLM_TEMPERATURE` – sampling control
+
+### Provider-Specific Notes
+
+- **Ollama**: Local/remote self-hosted. Native tool calling supported; no API key. Existing `OllamaClient` becomes one provider implementation.
+- **Google Gemini**: Uses REST API with API key header. Supports JSON schema tool calling. Requires safety settings alignment.
+- **OpenAI**: Function calling available via `/v1/chat/completions`. Must map tool schemas to OpenAI function format.
+- **Mistral**: Chat Completions API with tool call support (beta). Ensure `response_format` set when using JSON outputs.
+- **Anthropic**: Messages API with tool use. Requires `anthropic-version` header and `beta=tools-2024-05-16` (or newer) for tool calling.
+
+### Router Responsibilities
+
+1. **Provider Selection**: Read `LLM_PROVIDER`, default to `ollama`. Throw descriptive error if unsupported value.
+2. **Capability Detection**: Expose `supportsToolCalling`. If false, ToolCaller must handle tool invocation decisions entirely.
+3. **Request Normalization**: Convert internal message format to provider payload (role mapping, tool schema translation, safety parameters).
+4. **Response Normalization**: Convert provider outputs back into `{ message, tool_calls, usage }` so downstream logic remains unchanged.
+5. **Telemetry**: Standardize logging (latency, tokens) for comparability across providers.
+
+### Security & Secrets
+
+- API keys live in `.env` and must **never** be logged.
+- Each provider client reads its key at instantiation and stores it in memory only.
+- When multiple providers coexist, only the active provider’s credentials are required; others can remain unset.
+- Future enhancement: support key rotation via runtime config reload.
+
+### Testing Strategy
+
+- **Unit Tests**: Mock each provider’s HTTP SDK and assert payload translation + error handling.
+- **Contract Tests**: Small suite hitting live endpoints (behind feature flag) to validate tool calling compatibility.
+- **Fallback Behavior**: Tests ensuring ToolCaller gracefully handles providers without native tool support.
+
+### Migration Plan
+
+1. **Phase 1 (Doc & Config)**: Introduce `LLM_PROVIDER` and provider-specific env placeholders in `.env.example` + docs (this document).
+2. **Phase 2 (Router)**: Implement `LLMRouter` + provider classes (Ollama, Gemini, OpenAI, Mistral, Anthropic). Wire into `src/index.js` and Agent.
+3. **Phase 3 (Testing & Telemetry)**: Add provider unit tests, update logging, expose metrics (latency/token counts) per provider.
+4. **Phase 4 (Polish)**: Add health checks, retry logic, dynamic provider switching if needed.
+
+This layered approach ensures the agent remains agnostic to specific vendors while enabling deployments to select the best LLM for their environment (local, cost-optimized, or bleeding-edge cloud models). 6. **Safe**: Input validation, no arbitrary code execution 7. **Focused**: Single purpose, not multi-function tools
 
 ### Cron Tool & Scheduler
 

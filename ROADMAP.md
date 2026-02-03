@@ -6,10 +6,10 @@ This document outlines planned features and improvements for the WORM personal a
 
 ✅ **Core Features Complete:**
 
-- Ollama LLM integration with custom 3-stage tool calling
+- Provider-agnostic LLM integration (Ollama + cloud APIs) with custom 3-stage tool calling
 - Matrix chat client with message handling
 - Security (user and room allowlists)
-- LLM-based tool routing with token optimization
+- LLM-based tool routing with aggressive token optimization for tight context windows
 - Basic tools (calculator, weather)
 - Consumer hardware optimization (4K-8K context)
 - Performance monitoring (token counts, timing per stage)
@@ -94,11 +94,11 @@ This document outlines planned features and improvements for the WORM personal a
 
 ## Future Considerations
 
-### Alternative LLM Providers
+### Provider Enhancements
 
-- OpenAI API support
-- Anthropic Claude support
-- Local LLM via llama.cpp
+- Additional enterprise providers (Azure OpenAI, Vertex AI hosted Gemini)
+- Provider-specific safety/latency tuning
+- Local LLM optimizations (llama.cpp, vLLM) beyond current abstraction
 
 ### Multi-Platform Support
 

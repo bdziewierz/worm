@@ -2,20 +2,45 @@
 
 import 'dotenv/config';
 import chalk from 'chalk';
-import { OllamaClient } from './clients/ollama.js';
 import { MatrixClient } from './clients/matrix.js';
 import { Agent } from './agent/agent.js';
 import { getTools } from './tools/index.js';
 import { CronStore } from './lib/cronStore.js';
 import { CronService } from './lib/cronService.js';
 import { ScheduledMessageDispatcher } from './lib/scheduledMessageDispatcher.js';
+import { LLMDispatcher } from './lib/llmDispatcher.js';
 
 console.log(chalk.blue.bold('\n🤖 Starting WORM Personal Assistant...\n'));
 
 // Validate environment variables
+const llmProvider = (process.env.LLM_PROVIDER || 'ollama').toLowerCase();
+
+const llmProviderConfigs = {
+  ollama: {
+    label: 'Ollama',
+    required: ['OLLAMA_BASE_URL', 'OLLAMA_MODEL'],
+    buildConfig: env => ({
+      baseUrl: env.OLLAMA_BASE_URL,
+      model: env.OLLAMA_MODEL,
+    }),
+  },
+};
+
+const providerMeta = llmProviderConfigs[llmProvider];
+if (!providerMeta) {
+  console.error(chalk.red(`❌ Unsupported LLM provider "${llmProvider}".`));
+  console.error(
+    chalk.yellow(
+      `Supported providers: ${Object.keys(llmProviderConfigs)
+        .map(name => name)
+        .join(', ')}`
+    )
+  );
+  process.exit(1);
+}
+
 const requiredEnvVars = [
-  'OLLAMA_BASE_URL',
-  'OLLAMA_MODEL',
+  ...providerMeta.required,
   'MATRIX_HOMESERVER',
   'MATRIX_USER_ID',
   'MATRIX_ACCESS_TOKEN',
@@ -34,15 +59,15 @@ if (missingVars.length > 0) {
 async function main() {
   try {
     // Initialize clients
-    console.log(chalk.cyan('📡 Connecting to Ollama...'));
-    const ollamaClient = new OllamaClient({
-      baseUrl: process.env.OLLAMA_BASE_URL,
-      model: process.env.OLLAMA_MODEL,
+    console.log(chalk.cyan(`📡 Connecting to ${providerMeta.label}...`));
+    const llmDispatcher = new LLMDispatcher({
+      provider: llmProvider,
+      config: providerMeta.buildConfig(process.env),
     });
 
-    // Test Ollama connection
-    await ollamaClient.testConnection();
-    console.log(chalk.green('✓ Ollama connected\n'));
+    // Test LLM connection
+    await llmDispatcher.testConnection();
+    console.log(chalk.green(`✓ ${providerMeta.label} connected\n`));
 
     console.log(chalk.cyan('💬 Connecting to Matrix...'));
     const matrixClient = new MatrixClient({
@@ -59,7 +84,7 @@ async function main() {
     // Initialize agent with tools
     const services = {};
     const tools = getTools();
-    const agent = new Agent(ollamaClient, tools, {
+    const agent = new Agent(llmDispatcher, tools, {
       maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5,
       name: process.env.NAME,
       personality: process.env.PERSONALITY,
