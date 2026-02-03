@@ -1,4 +1,6 @@
-import { OllamaClient } from '../clients/ollama.js';
+import { OllamaClient } from '../clients/llm/ollama.js';
+import { GeminiClient } from '../clients/llm/gemini.js';
+import { MistralClient } from '../clients/llm/mistral.js';
 
 const SUPPORTED_PROVIDERS = {
   ollama: {
@@ -7,6 +9,24 @@ const SUPPORTED_PROVIDERS = {
       new OllamaClient({
         baseUrl: config?.baseUrl,
         model: config?.model,
+      }),
+  },
+  gemini: {
+    label: 'Google Gemini',
+    createClient: config =>
+      new GeminiClient({
+        apiKey: config?.apiKey,
+        model: config?.model,
+        apiBaseUrl: config?.apiBaseUrl,
+      }),
+  },
+  mistral: {
+    label: 'Mistral',
+    createClient: config =>
+      new MistralClient({
+        apiKey: config?.apiKey,
+        model: config?.model,
+        apiBaseUrl: config?.apiBaseUrl,
       }),
   },
 };

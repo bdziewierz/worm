@@ -7,8 +7,8 @@ This document outlines the architectural decisions, design patterns, and key ass
 WORM is a personal AI assistant application that:
 
 - Runs as a command-line Node.js application
-- Uses a pluggable LLM provider layer (Ollama, Google Gemini, OpenAI, Mistral, Anthropic)
-- Integrates with a messaging dispatcher (Matrix today, Signal next)
+- Uses a pluggable LLM provider layer (Ollama, Google Gemini, Mistral)
+- Integrates with a messaging dispatcher (Matrix adapter available)
 - Executes tools based on user requests via an agent system
 
 ## Architectural Principles
@@ -99,7 +99,7 @@ The application is divided into distinct layers:
 
 - **Assumption**: Different deployments may favor different LLM vendors (self-hosted vs. cloud)
 - **Rationale**: A pluggable provider layer allows switching models without touching agent logic
-- **Supported Providers**: `ollama`, `gemini`, `openai`, `mistral`, `anthropic`
+- **Supported Providers**: `ollama`, `gemini`, `mistral`
 - **Selection Mechanism**: `.env` variable `LLM_PROVIDER` determines active provider at runtime
 - **Configuration Pattern**: Provider-specific env vars (API keys, base URLs, model IDs) remain isolated
 
@@ -115,9 +115,9 @@ The application is divided into distinct layers:
 #### Messaging Providers (Matrix default)
 
 - **Assumption**: Chat transport should be swappable just like the LLM
-- **Rationale**: The messaging dispatcher exposes a minimal API (connect, onMessage, sendMessage, setTyping, disconnect) so future providers such as Signal only need to satisfy that contract
+- **Rationale**: The messaging dispatcher exposes a minimal API (connect, onMessage, sendMessage, setTyping, disconnect) so alternative transports can plug in without touching the agent
 - **Current Default**: Matrix remains the first-class implementation due to its federated, secure design
-- **Security**: Matrix homeserver-authenticated user IDs prevent spoofing; Signal integration will inherit comparable identity guarantees
+- **Security**: Matrix homeserver-authenticated user IDs prevent spoofing
 - **Note**: Users cannot be impersonated; Matrix authentication is cryptographic
 
 #### ESM Modules
@@ -139,8 +139,12 @@ worm/
 │   │   ├── messagingDispatcher.js # Messaging provider router
 │   │   └── toolCaller.js     # Custom 3-stage tool calling system
 │   ├── clients/              # Self-contained client modules (no index.js)
-│   │   ├── ollama.js         # Ollama LLM client wrapper
-│   │   └── matrix.js         # Matrix chat client wrapper
+│   │   ├── llm/              # Individual LLM clients
+│   │   │   ├── gemini.js
+│   │   │   ├── mistral.js
+│   │   │   └── ollama.js
+│   │   └── messaging/
+│   │       └── matrix.js
 │   └── tools/                # Self-contained tool modules
 │       ├── index.js          # Tool registry
 │       └── *.js              # Individual tool implementations
@@ -180,7 +184,7 @@ worm/
 1. User message → Add to history
 2. Build system prompt with user context (name, personality, timestamp, sender)
 3. If tools registered → Delegate to ToolCaller (3-stage flow)
-4. If no tools → Direct ollama.chat() call
+4. If no tools → Direct llm.chat() call
 5. Add assistant response to history
 6. Return response to user
 
@@ -191,28 +195,27 @@ worm/
 - Agent receives final text response
 - System prompt is included in messages array for all stages
 
-### 2. Ollama Client (`src/clients/ollama.js`)
+### 2. LLM Clients (`src/clients/llm/*.js`)
 
 **Responsibilities:**
 
-- Manage connection to remote Ollama server
-- Provide chat interface with tool calling support
-- Handle model validation
+- Wrap each provider's SDK or REST API behind the shared `testConnection()` + `chat()` interface used by `LLMDispatcher`
+- Normalize responses so downstream components always see `{ message: { content }, prompt_eval_count, eval_count }`
+- Surface provider-specific configuration errors early (missing keys, invalid models, etc.)
 
-**Key Design Decisions:**
+**Current Implementations:**
 
-- Connection is validated on startup
-- Model name is configurable via environment
-- Supports both `chat` (with tools) and `generate` (simple prompts)
-- Streaming is disabled for predictable response handling
+- `ollama.js` – connects to a self-hosted Ollama endpoint via the official SDK and exposes both `chat()` and `generate()` helpers
+- `gemini.js` – calls Google's Generative Language REST API using JSON payloads with system instructions and content parts
+- `mistral.js` – targets the Mistral `chat/completions` endpoint with standard OpenAI-style message objects
 
-**API Surface:**
+**Design Notes:**
 
-- `testConnection()` - Verify Ollama availability and model presence
-- `chat(messages, tools)` - Main LLM interaction with tool support
-- `generate(prompt, options)` - Simple text generation
+- Constructors validate that required fields (API keys, models, base URLs) are present before any network call
+- `testConnection()` executes a lightweight health probe (`/models` style endpoint) and warns if the requested model is unavailable
+- `chat()` catches transport errors and wraps them in provider-specific error messages so troubleshooting remains straightforward
 
-### 3. Matrix Client (`src/clients/matrix.js`)
+### 3. Matrix Client (`src/clients/messaging/matrix.js`)
 
 **Responsibilities:**
 
@@ -250,7 +253,7 @@ worm/
 **Responsibilities:**
 
 - Provide a thin adapter that selects the active messaging provider at runtime
-- Instantiate the correct client (Matrix today, Signal in the roadmap) based on `CHANNEL_PROVIDER`
+- Instantiate the correct client based on `CHANNEL_PROVIDER` (Matrix adapter ships by default)
 - Expose a consistent API: `connect`, `disconnect`, `onMessage`, `sendMessage`, `setTyping`
 
 **Key Design Decisions:**
@@ -436,7 +439,7 @@ Tools that fit consumer-grade hardware constraints (compact outputs, stateless, 
 To support multiple LLM backends, WORM introduces a provider-agnostic abstraction layer. The agent and ToolCaller interact with an `LLMProvider` interface rather than individual SDKs. Each provider implementation encapsulates connection details, authentication, and capability quirks (tool calling, function calling, streaming availability).
 
 ```
-Agent → ToolCaller → LLMRouter → (Ollama | Gemini | OpenAI | Mistral | Anthropic)
+Agent → ToolCaller → LLMRouter → (Ollama | Gemini | Mistral)
 ```
 
 ### Provider Interface
@@ -461,9 +464,7 @@ class BaseProvider {
 | ------------- | -------------------- | ----------------------------------------------------------------- |
 | Ollama        | `ollama`             | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`                                 |
 | Google Gemini | `gemini`             | `GEMINI_API_KEY`, `GEMINI_MODEL` (e.g., `gemini-1.5-pro-latest`)  |
-| OpenAI        | `openai`             | `OPENAI_API_KEY`, `OPENAI_MODEL` (e.g., `gpt-4o-mini`)            |
 | Mistral       | `mistral`            | `MISTRAL_API_KEY`, `MISTRAL_MODEL` (e.g., `mistral-large-latest`) |
-| Anthropic     | `anthropic`          | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (e.g., `claude-3-sonnet`)  |
 
 Optional knobs shared across providers:
 
@@ -475,9 +476,7 @@ Optional knobs shared across providers:
 
 - **Ollama**: Local/remote self-hosted. Native tool calling supported; no API key. Existing `OllamaClient` becomes one provider implementation.
 - **Google Gemini**: Uses REST API with API key header. Supports JSON schema tool calling. Requires safety settings alignment.
-- **OpenAI**: Function calling available via `/v1/chat/completions`. Must map tool schemas to OpenAI function format.
 - **Mistral**: Chat Completions API with tool call support (beta). Ensure `response_format` set when using JSON outputs.
-- **Anthropic**: Messages API with tool use. Requires `anthropic-version` header and `beta=tools-2024-05-16` (or newer) for tool calling.
 
 ### Router Responsibilities
 
@@ -503,7 +502,7 @@ Optional knobs shared across providers:
 ### Migration Plan
 
 1. **Phase 1 (Doc & Config)**: Introduce `LLM_PROVIDER` and provider-specific env placeholders in `.env.example` + docs (this document).
-2. **Phase 2 (Router)**: Implement `LLMRouter` + provider classes (Ollama, Gemini, OpenAI, Mistral, Anthropic). Wire into `src/index.js` and Agent.
+2. **Phase 2 (Router)**: Implement `LLMRouter` + provider classes (Ollama, Gemini, Mistral). Wire into `src/index.js` and Agent.
 3. **Phase 3 (Testing & Telemetry)**: Add provider unit tests, update logging, expose metrics (latency/token counts) per provider.
 4. **Phase 4 (Polish)**: Add health checks, retry logic, dynamic provider switching if needed.
 

@@ -1,6 +1,6 @@
 # WORM Personal Assistant
 
-A command-line Node.js application that acts as a personal AI assistant with a pluggable LLM provider layer (Ollama, Google Gemini, OpenAI, Mistral, Anthropic) and a messaging dispatcher layer that can host multiple chat providers (Matrix adapter included). The assistant executes tools and responds through whichever chat channel you configure.
+A command-line Node.js application that acts as a personal AI assistant with a pluggable LLM provider layer (Ollama, Google Gemini, Mistral) and a messaging dispatcher layer that can host multiple chat providers (Matrix adapter included). The assistant executes tools and responds through whichever chat channel you configure.
 
 ## Features
 
@@ -9,7 +9,7 @@ A command-line Node.js application that acts as a personal AI assistant with a p
 - 🧠 **Intelligent Tool Routing**: LLM-based tool selection with efficient context usage
 - 🔒 **User Access Control**: Allowlist system to restrict who can use the assistant
 - 🔧 **Extensible Tools**: Easy to add new tools and capabilities
-- 🌐 **Flexible LLM Providers**: Works with self-hosted Ollama or cloud APIs (Gemini, OpenAI, Mistral, Anthropic)
+- 🌐 **Flexible LLM Providers**: Works with self-hosted Ollama or cloud APIs (Gemini, Mistral)
 - 🪙 **Token-Efficient Design**: Aggressively optimizes prompts so even local models with tight 4K–8K windows remain viable
 - ⚡ **Modern Node.js**: Uses ESM modules and latest Node.js features (v20+)
 - 📊 **Performance Monitoring**: Token usage and timing metrics for each stage
@@ -53,7 +53,7 @@ cp .env.example .env
 
 ```env
 # LLM Provider Selection
-LLM_PROVIDER=ollama               # Options: ollama | gemini | openai | mistral | anthropic
+LLM_PROVIDER=ollama               # Options: ollama | gemini | mistral
 
 # Messaging Provider Selection
 CHANNEL_PROVIDER=matrix           # Options: matrix (register more by extending messaging dispatcher)
@@ -66,17 +66,9 @@ OLLAMA_MODEL=llama3.2
 GEMINI_API_KEY=your_gemini_key
 GEMINI_MODEL=gemini-1.5-pro-latest
 
-# OpenAI Configuration (if LLM_PROVIDER=openai)
-OPENAI_API_KEY=your_openai_key
-OPENAI_MODEL=gpt-4o-mini
-
 # Mistral Configuration (if LLM_PROVIDER=mistral)
 MISTRAL_API_KEY=your_mistral_key
 MISTRAL_MODEL=mistral-large-latest
-
-# Anthropic Configuration (if LLM_PROVIDER=anthropic)
-ANTHROPIC_API_KEY=your_anthropic_key
-ANTHROPIC_MODEL=claude-3-sonnet
 
 # Matrix Configuration (if CHANNEL_PROVIDER=matrix)
 MATRIX_HOMESERVER=https://matrix.org
@@ -217,8 +209,12 @@ worm/
 │   │   ├── messagingDispatcher.js # Provider-agnostic messaging orchestration
 │   │   └── toolCaller.js     # Custom 3-stage tool calling system
 │   ├── clients/
-│   │   ├── ollama.js         # Ollama LLM client
-│   │   └── matrix.js         # Matrix chat client
+│   │   ├── llm/              # LLM provider clients
+│   │   │   ├── gemini.js
+│   │   │   ├── mistral.js
+│   │   │   └── ollama.js
+│   │   └── messaging/        # Messaging provider clients
+│   │       └── matrix.js
 │   └── tools/
 │       ├── index.js          # Tool registry
 │       ├── calculate.js      # Calculator tool

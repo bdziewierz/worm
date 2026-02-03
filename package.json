@@ -1,7 +1,7 @@
 {
   "name": "worm-assistant",
   "version": "1.0.0",
-  "description": "Personal AI assistant with Ollama LLM and Matrix chat integration",
+  "description": "Personal AI assistant with pluggable LLM providers and Matrix chat integration",
   "type": "module",
   "main": "src/index.js",
   "scripts": {

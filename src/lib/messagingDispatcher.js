@@ -1,4 +1,4 @@
-import { MatrixClient } from '../clients/matrix.js';
+import { MatrixClient } from '../clients/messaging/matrix.js';
 
 const SUPPORTED_CHANNELS = {
   matrix: {

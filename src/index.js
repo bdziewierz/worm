@@ -25,6 +25,24 @@ const llmProviderConfigs = {
       model: env.OLLAMA_MODEL,
     }),
   },
+  gemini: {
+    label: 'Google Gemini',
+    required: ['GEMINI_API_KEY', 'GEMINI_MODEL'],
+    buildConfig: env => ({
+      apiKey: env.GEMINI_API_KEY,
+      model: env.GEMINI_MODEL,
+      apiBaseUrl: env.GEMINI_API_BASE_URL,
+    }),
+  },
+  mistral: {
+    label: 'Mistral',
+    required: ['MISTRAL_API_KEY', 'MISTRAL_MODEL'],
+    buildConfig: env => ({
+      apiKey: env.MISTRAL_API_KEY,
+      model: env.MISTRAL_MODEL,
+      apiBaseUrl: env.MISTRAL_API_BASE_URL,
+    }),
+  },
 };
 
 const channelProviderConfigs = {
