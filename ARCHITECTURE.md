@@ -8,7 +8,7 @@ WORM is a personal AI assistant application that:
 
 - Runs as a command-line Node.js application
 - Uses a pluggable LLM provider layer (Ollama, Google Gemini, OpenAI, Mistral, Anthropic)
-- Integrates with Matrix protocol for user communication
+- Integrates with a messaging dispatcher (Matrix today, Signal next)
 - Executes tools based on user requests via an agent system
 
 ## Architectural Principles
@@ -112,11 +112,12 @@ The application is divided into distinct layers:
 - **Effective Context**: 4K-8K tokens (VRAM constraint on KV cache, not model limitation)
 - **Note**: The client can connect to any Ollama-compatible API endpoint
 
-#### Matrix Protocol
+#### Messaging Providers (Matrix default)
 
-- **Assumption**: Matrix provides secure, decentralized communication
-- **Rationale**: End-to-end encryption capable, federated, open protocol
-- **Security**: Homeserver-authenticated user IDs prevent spoofing
+- **Assumption**: Chat transport should be swappable just like the LLM
+- **Rationale**: The messaging dispatcher exposes a minimal API (connect, onMessage, sendMessage, setTyping, disconnect) so future providers such as Signal only need to satisfy that contract
+- **Current Default**: Matrix remains the first-class implementation due to its federated, secure design
+- **Security**: Matrix homeserver-authenticated user IDs prevent spoofing; Signal integration will inherit comparable identity guarantees
 - **Note**: Users cannot be impersonated; Matrix authentication is cryptographic
 
 #### ESM Modules
@@ -134,6 +135,8 @@ worm/
 │   ├── agent/
 │   │   └── agent.js          # Agent orchestration logic
 │   ├── lib/
+│   │   ├── llmDispatcher.js  # Pluggable LLM provider router
+│   │   ├── messagingDispatcher.js # Messaging provider router
 │   │   └── toolCaller.js     # Custom 3-stage tool calling system
 │   ├── clients/              # Self-contained client modules (no index.js)
 │   │   ├── ollama.js         # Ollama LLM client wrapper
@@ -242,7 +245,26 @@ worm/
 5. Timestamp check (ignore old messages)
 6. Forward to registered handlers
 
-### 4. Intent Classifier (`src/agent/intentClassifier.js`)
+### 4. Messaging Dispatcher (`src/lib/messagingDispatcher.js`)
+
+**Responsibilities:**
+
+- Provide a thin adapter that selects the active messaging provider at runtime
+- Instantiate the correct client (Matrix today, Signal in the roadmap) based on `CHANNEL_PROVIDER`
+- Expose a consistent API: `connect`, `disconnect`, `onMessage`, `sendMessage`, `setTyping`
+
+**Key Design Decisions:**
+
+- Composition over inheritance: providers remain self-contained classes, while the dispatcher simply delegates
+- Optional `client` injection keeps tests lightweight and enables custom providers without touching registry code
+- Capability checks guard against partially implemented clients so failures surface early during startup
+
+**Integration Points:**
+
+- `src/index.js` builds one dispatcher and shares it with the Agent runtime + cron scheduler
+- `ScheduledMessageDispatcher` depends on the dispatcher interface instead of Matrix specifics, so new transports automatically flow through scheduled jobs
+
+### 5. Intent Classifier (`src/agent/intentClassifier.js`)
 
 **Purpose:**
 
@@ -290,7 +312,7 @@ The Intent Classifier is a **critical performance optimization** for consumer-gr
 - @xenova/transformers for tokenization
 - Application starts normally - will load tokenizer on first classification (~10-20MB download)
 
-### 5. Tools (`src/tools/*.js`)
+### 6. Tools (`src/tools/*.js`)
 
 **Tool Structure:**
 Each tool must export an object with:

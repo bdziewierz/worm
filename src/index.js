@@ -2,18 +2,19 @@
 
 import 'dotenv/config';
 import chalk from 'chalk';
-import { MatrixClient } from './clients/matrix.js';
 import { Agent } from './agent/agent.js';
 import { getTools } from './tools/index.js';
 import { CronStore } from './lib/cronStore.js';
 import { CronService } from './lib/cronService.js';
 import { ScheduledMessageDispatcher } from './lib/scheduledMessageDispatcher.js';
 import { LLMDispatcher } from './lib/llmDispatcher.js';
+import { MessagingDispatcher } from './lib/messagingDispatcher.js';
 
 console.log(chalk.blue.bold('\n🤖 Starting WORM Personal Assistant...\n'));
 
 // Validate environment variables
 const llmProvider = (process.env.LLM_PROVIDER || 'ollama').toLowerCase();
+const channelProvider = (process.env.CHANNEL_PROVIDER || 'matrix').toLowerCase();
 
 const llmProviderConfigs = {
   ollama: {
@@ -22,6 +23,20 @@ const llmProviderConfigs = {
     buildConfig: env => ({
       baseUrl: env.OLLAMA_BASE_URL,
       model: env.OLLAMA_MODEL,
+    }),
+  },
+};
+
+const channelProviderConfigs = {
+  matrix: {
+    label: 'Matrix',
+    required: ['MATRIX_HOMESERVER', 'MATRIX_USER_ID', 'MATRIX_ACCESS_TOKEN'],
+    buildConfig: env => ({
+      homeserver: env.MATRIX_HOMESERVER,
+      userId: env.MATRIX_USER_ID,
+      accessToken: env.MATRIX_ACCESS_TOKEN,
+      allowedUsers: env.MATRIX_ALLOWED_USERS,
+      allowedRooms: env.MATRIX_ALLOWED_ROOMS,
     }),
   },
 };
@@ -39,12 +54,19 @@ if (!providerMeta) {
   process.exit(1);
 }
 
-const requiredEnvVars = [
-  ...providerMeta.required,
-  'MATRIX_HOMESERVER',
-  'MATRIX_USER_ID',
-  'MATRIX_ACCESS_TOKEN',
-];
+const channelMeta = channelProviderConfigs[channelProvider];
+if (!channelMeta) {
+  console.error(chalk.red(`❌ Unsupported messaging provider "${channelProvider}".`));
+  console.error(
+    chalk.yellow(
+      `Supported providers: ${Object.keys(channelProviderConfigs)
+        .map(name => name)
+        .join(', ')}`
+    )
+  );
+  process.exit(1);
+}
+const requiredEnvVars = [...new Set([...providerMeta.required, ...channelMeta.required])];
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingVars.length > 0) {
@@ -69,17 +91,14 @@ async function main() {
     await llmDispatcher.testConnection();
     console.log(chalk.green(`✓ ${providerMeta.label} connected\n`));
 
-    console.log(chalk.cyan('💬 Connecting to Matrix...'));
-    const matrixClient = new MatrixClient({
-      homeserver: process.env.MATRIX_HOMESERVER,
-      userId: process.env.MATRIX_USER_ID,
-      accessToken: process.env.MATRIX_ACCESS_TOKEN,
-      allowedUsers: process.env.MATRIX_ALLOWED_USERS,
-      allowedRooms: process.env.MATRIX_ALLOWED_ROOMS,
+    console.log(chalk.cyan(`💬 Connecting to ${channelMeta.label}...`));
+    const messagingDispatcher = new MessagingDispatcher({
+      provider: channelProvider,
+      config: channelMeta.buildConfig(process.env),
     });
 
-    await matrixClient.connect();
-    console.log(chalk.green('✓ Matrix connected\n'));
+    await messagingDispatcher.connect();
+    console.log(chalk.green(`✓ ${channelMeta.label} connected\n`));
 
     // Initialize agent with tools
     const services = {};
@@ -92,23 +111,28 @@ async function main() {
       speakingStyle: process.env.SPEAKING_STYLE,
       services,
     });
-    const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
-      ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
-      : 'Listening in all rooms';
-    const usersMsg = process.env.MATRIX_ALLOWED_USERS
-      ? `Allowed users: ${process.env.MATRIX_ALLOWED_USERS}`
-      : 'Allowing all users';
-    console.log(chalk.gray(`${roomsMsg}\n${usersMsg}\n`));
+    if (channelProvider === 'matrix') {
+      const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS
+        ? `Allowed rooms: ${process.env.MATRIX_ALLOWED_ROOMS}`
+        : 'Listening in all rooms';
+      const usersMsg = process.env.MATRIX_ALLOWED_USERS
+        ? `Allowed users: ${process.env.MATRIX_ALLOWED_USERS}`
+        : 'Allowing all users';
+      console.log(chalk.gray(`${roomsMsg}\n${usersMsg}\n`));
+    }
 
     const cronStore = new CronStore();
-    const dispatcher = new ScheduledMessageDispatcher({ agent, matrixClient });
+    const dispatcher = new ScheduledMessageDispatcher({
+      agent,
+      messagingClient: messagingDispatcher,
+    });
     const cronService = new CronService({ store: cronStore, dispatcher });
     services.cron = cronService;
     const restoredCount = await cronService.restore();
     console.log(chalk.gray(`⏰ Restored ${restoredCount} scheduled job(s)`));
 
     // Handle Matrix messages
-    matrixClient.onMessage(async message => {
+    messagingDispatcher.onMessage(async message => {
       console.log(
         chalk.blue(
           `\n📨 Received from ${message.sender} in room ${message.roomId}: ${message.text}`
@@ -116,21 +140,21 @@ async function main() {
       );
 
       try {
-        await matrixClient.setTyping(message.roomId, true);
+        await messagingDispatcher.setTyping(message.roomId, true);
         const response = await agent.processMessage(message.text, {
           userId: message.sender,
           roomId: message.roomId,
         });
-        await matrixClient.sendMessage(response, message.roomId);
+        await messagingDispatcher.sendMessage(response, message.roomId);
         console.log(chalk.green(`✓ Sent response\n`));
       } catch (error) {
         console.error(chalk.red(`❌ Error processing message: ${error.message}`));
-        await matrixClient.sendMessage(
+        await messagingDispatcher.sendMessage(
           `Sorry, I encountered an error: ${error.message}`,
           message.roomId
         );
       } finally {
-        await matrixClient.setTyping(message.roomId, false);
+        await messagingDispatcher.setTyping(message.roomId, false);
       }
     });
 
@@ -138,7 +162,7 @@ async function main() {
     process.on('SIGINT', async () => {
       console.log(chalk.yellow('\n\n👋 Shutting down gracefully...'));
       await cronService.shutdown();
-      await matrixClient.disconnect();
+      await messagingDispatcher.disconnect();
       process.exit(0);
     });
   } catch (error) {

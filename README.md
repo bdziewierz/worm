@@ -1,11 +1,11 @@
 # WORM Personal Assistant
 
-A command-line Node.js application that acts as a personal AI assistant with a pluggable LLM provider layer (Ollama, Google Gemini, OpenAI, Mistral, Anthropic) and Matrix chat integration. The assistant can execute various tools and respond to commands through a Matrix chat room.
+A command-line Node.js application that acts as a personal AI assistant with a pluggable LLM provider layer (Ollama, Google Gemini, OpenAI, Mistral, Anthropic) and a messaging dispatcher layer that can host multiple chat providers (Matrix adapter included). The assistant executes tools and responds through whichever chat channel you configure.
 
 ## Features
 
 - 🤖 **AI Agent System**: Powered by a provider-agnostic LLM layer with custom 3-stage tool calling
-- 💬 **Matrix Chat Integration**: Communicate with your assistant through Matrix
+- 💬 **Messaging Dispatcher**: Pluggable channel layer with the Matrix adapter bundled
 - 🧠 **Intelligent Tool Routing**: LLM-based tool selection with efficient context usage
 - 🔒 **User Access Control**: Allowlist system to restrict who can use the assistant
 - 🔧 **Extensible Tools**: Easy to add new tools and capabilities
@@ -17,6 +17,10 @@ A command-line Node.js application that acts as a personal AI assistant with a p
 ## LLM Provider Philosophy
 
 WORM treats LLM selection as a deployment-time decision. The `LLM_PROVIDER` environment variable (see configuration section) chooses between Ollama and supported cloud vendors, while the agent always builds compact prompts/tool schemas to conserve context. This token discipline keeps costs low for cloud APIs and ensures the assistant can still run comfortably on constrained local hardware (24GB VRAM / 4K–8K effective context).
+
+## Messaging Provider Layer
+
+The messaging dispatcher mirrors the LLM layer: set `CHANNEL_PROVIDER` to pick which transport handles inbound/outbound chat. The repository currently ships with the `matrix` adapter, and adding another provider just means registering a client that implements the dispatcher contract (`connect`, `onMessage`, `sendMessage`, `setTyping`, `disconnect`).
 
 ## Prerequisites
 
@@ -51,6 +55,9 @@ cp .env.example .env
 # LLM Provider Selection
 LLM_PROVIDER=ollama               # Options: ollama | gemini | openai | mistral | anthropic
 
+# Messaging Provider Selection
+CHANNEL_PROVIDER=matrix           # Options: matrix (register more by extending messaging dispatcher)
+
 # Ollama Configuration (if LLM_PROVIDER=ollama)
 OLLAMA_BASE_URL=http://your-ollama-server:11434
 OLLAMA_MODEL=llama3.2
@@ -71,7 +78,7 @@ MISTRAL_MODEL=mistral-large-latest
 ANTHROPIC_API_KEY=your_anthropic_key
 ANTHROPIC_MODEL=claude-3-sonnet
 
-# Matrix Configuration
+# Matrix Configuration (if CHANNEL_PROVIDER=matrix)
 MATRIX_HOMESERVER=https://matrix.org
 MATRIX_USER_ID=@your-bot:matrix.org
 MATRIX_ACCESS_TOKEN=your_access_token_here
@@ -206,6 +213,8 @@ worm/
 │   ├── agent/
 │   │   └── agent.js          # Agent logic with conversation management
 │   ├── lib/
+│   │   ├── llmDispatcher.js  # Provider-agnostic LLM orchestration
+│   │   ├── messagingDispatcher.js # Provider-agnostic messaging orchestration
 │   │   └── toolCaller.js     # Custom 3-stage tool calling system
 │   ├── clients/
 │   │   ├── ollama.js         # Ollama LLM client
