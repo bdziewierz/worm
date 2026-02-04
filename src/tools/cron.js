@@ -56,7 +56,7 @@ export const cronTool = {
   description:
     'Schedule, list, cancel, or clear recurring commands that the assistant will run automatically in this room. Jobs are numbered per user (1-5) for easy cancellation.',
   category: 'automation',
-  keywords: ['cron', 'schedule', 'recurring', 'automation', 'timer'],
+  keywords: ['cron', 'schedule', 'recurring', 'automation', 'timer', 'remind'],
   parameters: {
     type: 'object',
     properties: {
