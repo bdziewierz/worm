@@ -74,37 +74,24 @@ export class ToolCaller {
 
     // Only include schemas for selected tools
     const selectedTools = tools.filter(tool => selectedToolNames.includes(tool.name));
-    const schemas = selectedTools.map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters || {},
-    }));
+    if (typeof this.llm?.requestToolArgs !== 'function') {
+      throw new Error('Active LLM client does not support tool argument extraction');
+    }
 
-    const systemPrompt =
-      `Tools with parameters: ${JSON.stringify(schemas)}\n\n` +
-      `Task: Extract arguments for each tool from the conversation.\n` +
-      `Output: {"tool_calls": [{"name": "tool_name", "arguments": {...}}]}`;
-
-    const response = await this.llm.chat(
-      [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-        { role: 'user', content: userMessage },
-      ],
-      selectedTools,
-      { responseFormat: 'json' }
-    );
+    const result = await this.llm.requestToolArgs(messages, selectedTools, userMessage);
 
     const duration = Date.now() - startTime;
-    const inputTokens = response?.prompt_eval_count || 0;
-    const outputTokens = response?.eval_count || 0;
+    const inputTokens = result?.prompt_eval_count || 0;
+    const outputTokens = result?.eval_count || 0;
     console.log(`📊 Step 2: ${inputTokens} in, ${outputTokens} out, ${duration}ms`);
 
-    const parsed = this._parseJsonObject(response?.message?.content);
-    if (!parsed || !Array.isArray(parsed.tool_calls)) {
-      return [];
-    }
-    return parsed.tool_calls;
+    const toolCalls = Array.isArray(result)
+      ? result
+      : Array.isArray(result?.tool_calls)
+        ? result.tool_calls
+        : [];
+
+    return toolCalls;
   }
 
   async _requestFinalResponse(messages, toolResults) {

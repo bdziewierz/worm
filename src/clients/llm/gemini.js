@@ -141,4 +141,17 @@ export class GeminiClient {
       throw new Error(`Gemini chat error: ${error.message}`);
     }
   }
+
+  async requestToolArgs(messages, selectedTools, userMessage) {
+    const response = await this.chat(
+      [...messages, { role: 'user', content: userMessage }],
+      selectedTools
+    );
+
+    return {
+      tool_calls: response?.message?.tool_calls || [],
+      prompt_eval_count: response?.prompt_eval_count || 0,
+      eval_count: response?.eval_count || 0,
+    };
+  }
 }
