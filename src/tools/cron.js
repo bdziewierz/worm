@@ -1,5 +1,5 @@
 const ACTIONS = ['schedule', 'list', 'cancel', 'clear'];
-const TYPES = ['reminder', 'command', 'check_in', 'status', 'follow_up'];
+const TYPES = ['reminder', 'command'];
 const MIN_INTERVAL_MINUTES = 5;
 const MAX_INTERVAL_MINUTES = 24 * 60;
 const MAX_COMMAND_LENGTH = 300;
@@ -71,8 +71,7 @@ export const cronTool = {
       },
       type: {
         type: 'string',
-        description:
-          'Job intention (e.g., reminder, command, check_in, status, follow_up). Defaults to reminder.',
+        description: 'Job intention. Defaults to command.',
         enum: TYPES,
       },
       intervalMinutes: {
@@ -160,7 +159,7 @@ export const cronTool = {
 
       const startAt = validateStartAt(args.startAt);
       const maxRuns = normalizeMaxRuns(args.maxRuns);
-      const type = String(args.type || 'reminder').toLowerCase();
+      const type = String(args.type || 'command').toLowerCase();
       if (!TYPES.includes(type)) {
         return { error: `type must be one of: ${TYPES.join(', ')}` };
       }

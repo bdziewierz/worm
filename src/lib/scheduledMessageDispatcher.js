@@ -27,7 +27,8 @@ export class ScheduledMessageDispatcher {
       `The next user message is from a scheduled cron job. ` +
       `Type: ${jobType}. ` +
       `It runs every ${intervalText}. ` +
-      `Cron jobs are automated reminders/instructions created by the user.`;
+      `Cron jobs are usually automated reminders for the user that you need to repeat directly, ` +
+      `or commands for you to follow. Always repeat the user message back to the user.`;
 
     await this.messagingClient.setTyping(job.roomId, true, 10000);
     try {
