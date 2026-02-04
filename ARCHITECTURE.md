@@ -137,7 +137,7 @@ worm/
 │   ├── lib/
 │   │   ├── llmDispatcher.js  # Pluggable LLM provider router
 │   │   ├── messagingDispatcher.js # Messaging provider router
-│   │   └── toolCaller.js     # Custom 3-stage tool calling system
+│   │   └── toolCaller.js     # Semantic tool selection + tool calling
 │   ├── clients/              # Self-contained client modules (no index.js)
 │   │   ├── llm/              # Individual LLM clients
 │   │   │   ├── gemini.js
@@ -175,7 +175,7 @@ worm/
 - System prompt is generated per-message with current timestamp and sender info
   - **Constraint**: Must be concise to preserve context for conversation
   - Includes: agent name, personality, current time, sender's Matrix user ID
-- ToolCaller handles all tool execution internally (3-stage flow)
+- ToolCaller selects a small tool subset via semantic search, then handles tool execution
   - Agent just passes messages and tools, receives final response
   - No tool result management needed in Agent
 
@@ -183,7 +183,7 @@ worm/
 
 1. User message → Add to history
 2. Build system prompt with user context (name, personality, timestamp, sender)
-3. If tools registered → Delegate to ToolCaller (3-stage flow)
+3. If tools registered → Delegate to ToolCaller (semantic selection + tool calling)
 4. If no tools → Direct llm.chat() call
 5. Add assistant response to history
 6. Return response to user
@@ -191,7 +191,7 @@ worm/
 **ToolCaller Integration:**
 
 - Agent passes messages + tools to ToolCaller.run()
-- ToolCaller handles stages 1-3 internally
+- ToolCaller selects up to 3 tools and orchestrates tool calls internally
 - Agent receives final text response
 - System prompt is included in messages array for all stages
 
@@ -205,7 +205,7 @@ worm/
 
 **Current Implementations:**
 
-- `ollama.js` – connects to a self-hosted Ollama endpoint via the official SDK and exposes both `chat()` and `generate()` helpers
+- `ollama.js` – connects to a self-hosted Ollama endpoint via the official SDK and exposes both `chat()` and `generate()` helpers. Tooling is prompt-based (no tools API).
 - `gemini.js` – calls Google's Generative Language REST API using JSON payloads with system instructions and content parts
 - `mistral.js` – targets the Mistral `chat/completions` endpoint with standard OpenAI-style message objects
 
@@ -267,11 +267,11 @@ worm/
 - `src/index.js` builds one dispatcher and shares it with the Agent runtime + cron scheduler
 - `ScheduledMessageDispatcher` depends on the dispatcher interface instead of Matrix specifics, so new transports automatically flow through scheduled jobs
 
-### 5. Intent Classifier (`src/agent/intentClassifier.js`)
+### 5. Semantic Tool Selection (`src/lib/toolCaller.js`)
 
 **Purpose:**
 
-The Intent Classifier is a **critical performance optimization** for consumer-grade hardware:
+Semantic tool selection keeps prompts small for consumer-grade hardware by sending only a few tools to the LLM.
 
 **Problem:** Sending all tool schemas to the LLM wastes ~1000 tokens per request:
 
@@ -279,41 +279,18 @@ The Intent Classifier is a **critical performance optimization** for consumer-gr
 - With 4K-8K effective context, this leaves only 3K-7K for conversation history
 - LLM must parse irrelevant tools on every request (processing overhead)
 
-**Solution:** Preselect 2-3 relevant tools using intent classification:
+**Solution:** Use lightweight semantic search over tool metadata to select a small subset:
 
-- Reduces tool schemas to ~100-200 tokens (80-90% savings)
-- LLM only sees tools relevant to user's intent
-- Frees context window for longer conversation history
-
-**Three-Tier Selection Strategy:**
-
-1. **Explicit Prefixes** (instant, 100% accuracy)
-   - `CALC: 25 * 4` → instantly loads calculate tool
-   - `WEATHER: London` → instantly loads weather tool
-   - No classification needed, zero latency
-
-2. **Intent Classification** (100-150ms, 85-90% accuracy)
-   - Zero-shot classification using DeBERTa-v3-xsmall ONNX model
-   - Semantic understanding of user intent
-   - Requires ONNX model download (see INTENT_CLASSIFIER.md)
-
-3. **Keyword Fallback** (instant)
-   - Used if intent classification fails or returns no matches
-   - Matches keywords in tool definitions
-   - Last resort to ensure tool availability
-
-**Configuration:**
-
-- `INTENT_THRESHOLD=0.7` - Confidence threshold for tool intent detection
-- `TOOL_THRESHOLD=0.5` - Confidence threshold for individual tool selection
-- `CORE_TOOLS=tool1,tool2` - Always-loaded tools (bypass classification)
+- Tokenize user query and tool metadata (name, description, category, keywords)
+- Compute similarity (TF-IDF + cosine) and rank tools
+- Always cap the selection to **3 tools maximum**
+- Core tools (if configured) are prioritized within the cap
 
 **Design:**
 
-- Intent classification is **required** for optimal context window usage
-- ONNX model with DeBERTa-v3-xsmall for zero-shot classification
-- @xenova/transformers for tokenization
-- Application starts normally - will load tokenizer on first classification (~10-20MB download)
+- Zero external dependencies (fast and lightweight)
+- Works with any LLM provider
+- Keeps tool schemas under tight context budgets
 
 ### 6. Tools (`src/tools/*.js`)
 

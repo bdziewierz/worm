@@ -43,16 +43,32 @@ export class OllamaClient {
     }
   }
 
+  _buildPromptToolSystemPrompt(tools = []) {
+    const toolSchemas = tools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters || { type: 'object', properties: {} },
+    }));
+
+    return (
+      `You may use tools to answer the user. ` +
+      `If a tool is needed, respond ONLY with JSON: ` +
+      `{"tool_calls":[{"name":"tool_name","arguments":{...}}]}. ` +
+      `If no tool is needed, respond normally. ` +
+      `Tools: ${JSON.stringify(toolSchemas)}`
+    );
+  }
+
   async chat(messages, tools = null, _options = {}) {
+    const promptTooling = Array.isArray(tools) && tools.length > 0;
+    const toolPrompt = promptTooling
+      ? [{ role: 'system', content: this._buildPromptToolSystemPrompt(tools) }]
+      : [];
     const options = {
       model: this.model,
-      messages: messages,
+      messages: [...toolPrompt, ...messages],
       stream: false,
     };
-
-    if (tools && tools.length > 0) {
-      options.tools = tools;
-    }
 
     try {
       const response = await this.client.chat(options);
@@ -74,63 +90,5 @@ export class OllamaClient {
     } catch (error) {
       throw new Error(`Ollama generate error: ${error.message}`);
     }
-  }
-
-  async requestToolArgs(messages, selectedTools, userMessage) {
-    const schemas = (selectedTools || []).map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters || {},
-    }));
-
-    const systemPrompt =
-      `Tools with parameters: ${JSON.stringify(schemas)}\n\n` +
-      `Task: Extract arguments for each tool from the conversation.\n` +
-      `Output: {"tool_calls": [{"name": "tool_name", "arguments": {...}}]}`;
-
-    const response = await this.chat(
-      [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-        { role: 'user', content: userMessage },
-      ],
-      selectedTools,
-      { responseFormat: 'json' }
-    );
-
-    const rawToolCalls = response?.message?.tool_calls;
-    const normalizedToolCalls = Array.isArray(rawToolCalls)
-      ? rawToolCalls
-          .map(call => {
-            const name = call?.function?.name || call?.name;
-            if (!name) return null;
-            let args = call?.function?.arguments ?? call?.arguments ?? {};
-            if (typeof args === 'string') {
-              try {
-                args = JSON.parse(args);
-              } catch {
-                args = {};
-              }
-            }
-            if (typeof args !== 'object' || args === null) {
-              args = {};
-            }
-            return { name, arguments: args };
-          })
-          .filter(Boolean)
-      : [];
-
-    const parsed = this._parseJsonObject(response?.message?.content);
-    const parsedToolCalls = parsed && Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
-    const tool_calls = normalizedToolCalls.length > 0 ? normalizedToolCalls : parsedToolCalls;
-    if (tool_calls.length === 0) {
-      const content = response?.message?.content || '';
-      console.log(`⚠️  Ollama tool args empty. Raw content: ${content.substring(0, 500)}`);
-    }
-    return {
-      tool_calls,
-      prompt_eval_count: response?.prompt_eval_count || 0,
-      eval_count: response?.eval_count || 0,
-    };
   }
 }

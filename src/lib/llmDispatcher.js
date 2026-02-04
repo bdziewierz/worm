@@ -63,13 +63,4 @@ export class LLMDispatcher {
     }
     return this.client.chat(messages, tools, options);
   }
-
-  async requestToolArgs(messages, selectedTools, userMessage) {
-    if (typeof this.client?.requestToolArgs !== 'function') {
-      throw new Error(
-        `Active LLM provider "${this.providerLabel}" does not support tool argument extraction`
-      );
-    }
-    return this.client.requestToolArgs(messages, selectedTools, userMessage);
-  }
 }
