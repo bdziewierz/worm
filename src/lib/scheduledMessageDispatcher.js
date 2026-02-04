@@ -18,6 +18,17 @@ export class ScheduledMessageDispatcher {
       throw new Error('Job roomId is required');
     }
 
+    const intervalMinutes = Number(job.intervalMinutes);
+    const intervalText = Number.isFinite(intervalMinutes)
+      ? `${intervalMinutes} minute${intervalMinutes === 1 ? '' : 's'}`
+      : 'a scheduled interval';
+    const jobType = job.type || 'reminder';
+    const cronSystemPrompt =
+      `The next user message is from a scheduled cron job. ` +
+      `Type: ${jobType}. ` +
+      `It runs every ${intervalText}. ` +
+      `Cron jobs are automated reminders/instructions created by the user.`;
+
     await this.messagingClient.setTyping(job.roomId, true, 10000);
     try {
       const response = await this.agent.processMessage(job.command, {
@@ -25,6 +36,7 @@ export class ScheduledMessageDispatcher {
         roomId: job.roomId,
         jobId: job.id,
         source: 'cron',
+        systemPromptAddon: cronSystemPrompt,
       });
       await this.messagingClient.sendMessage(response, job.roomId);
     } catch (error) {

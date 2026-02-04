@@ -120,7 +120,15 @@ export class CronService {
     return restoredCount;
   }
 
-  async scheduleJob({ userId, roomId, command, intervalMinutes, startAt = null, maxRuns = null }) {
+  async scheduleJob({
+    userId,
+    roomId,
+    command,
+    intervalMinutes,
+    startAt = null,
+    maxRuns = null,
+    type = 'reminder',
+  }) {
     if (!userId) {
       throw new Error('userId is required');
     }
@@ -170,6 +178,7 @@ export class CronService {
       userId,
       roomId,
       command: command.trim(),
+      type,
       intervalMinutes,
       startAt: toIso(startMs),
       nextRunAt: nextRunIso,

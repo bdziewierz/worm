@@ -322,6 +322,7 @@ Each tool must export an object with:
 - `get_current_time` - Date/time with timezone support
 - `calculate` - Safe mathematical expression evaluation
 - `get_weather` - Mock weather tool (placeholder for real API)
+- `cron` - Schedule recurring commands/reminders (types: reminder, command, check_in, status, follow_up)
 
 **Adding New Tools:**
 

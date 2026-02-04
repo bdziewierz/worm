@@ -155,6 +155,7 @@ The assistant comes with several built-in tools:
 - **get_current_time**: Get current date and time with timezone support
 - **calculate**: Perform mathematical calculations
 - **get_weather**: Get weather information (mock - needs real API integration)
+- **cron**: Schedule recurring commands/reminders (supports types like reminder, command, check_in, status, follow_up)
 
 ### Adding New Tools
 

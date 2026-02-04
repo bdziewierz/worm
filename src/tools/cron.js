@@ -1,4 +1,5 @@
 const ACTIONS = ['schedule', 'list', 'cancel', 'clear'];
+const TYPES = ['reminder', 'command', 'check_in', 'status', 'follow_up'];
 const MIN_INTERVAL_MINUTES = 5;
 const MAX_INTERVAL_MINUTES = 24 * 60;
 const MAX_COMMAND_LENGTH = 300;
@@ -11,6 +12,7 @@ function formatJob(job) {
   return {
     id: job.id,
     command: job.command,
+    type: job.type,
     intervalMinutes: job.intervalMinutes,
     nextRunAt: job.nextRunAt,
     lastRunAt: job.lastRunAt,
@@ -66,6 +68,12 @@ export const cronTool = {
       command: {
         type: 'string',
         description: 'Command to send to the assistant on each run (required for schedule).',
+      },
+      type: {
+        type: 'string',
+        description:
+          'Job intention (e.g., reminder, command, check_in, status, follow_up). Defaults to reminder.',
+        enum: TYPES,
       },
       intervalMinutes: {
         type: 'number',
@@ -152,6 +160,10 @@ export const cronTool = {
 
       const startAt = validateStartAt(args.startAt);
       const maxRuns = normalizeMaxRuns(args.maxRuns);
+      const type = String(args.type || 'reminder').toLowerCase();
+      if (!TYPES.includes(type)) {
+        return { error: `type must be one of: ${TYPES.join(', ')}` };
+      }
 
       const summary = await cronService.scheduleJob({
         userId,
@@ -160,6 +172,7 @@ export const cronTool = {
         intervalMinutes,
         startAt,
         maxRuns,
+        type,
       });
 
       const limit = cronService.maxJobsPerUser || DEFAULT_MAX_JOBS_PER_USER;

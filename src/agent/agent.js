@@ -48,7 +48,7 @@ export class Agent {
   }
 
   async processMessage(userMessage, metadata = {}) {
-    const { userId = null, roomId = null } = metadata || {};
+    const { userId = null, roomId = null, systemPromptAddon = '' } = metadata || {};
     const userName = userId;
     // Add user message to history
     this.conversationHistory.push({
@@ -61,10 +61,11 @@ export class Agent {
       this.conversationHistory = this.conversationHistory.slice(-this.maxHistory);
     }
 
-    const messages = [
-      { role: 'system', content: await this._buildSystemPrompt(userName) },
-      ...this.conversationHistory,
-    ];
+    const baseSystemPrompt = await this._buildSystemPrompt(userName);
+    const systemPrompt = systemPromptAddon
+      ? `${baseSystemPrompt}\n\n${systemPromptAddon}`
+      : baseSystemPrompt;
+    const messages = [{ role: 'system', content: systemPrompt }, ...this.conversationHistory];
 
     try {
       let assistantMessage;
