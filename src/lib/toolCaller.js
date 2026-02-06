@@ -1,5 +1,6 @@
 import { responseSanitiser } from './responseSanitiser.js';
 import { ToolSemanticScorer } from './toolSemanticScorer.js';
+import { logLlmPayload } from './llmLogger.js';
 
 export class ToolCaller {
   constructor(llmClient, options = {}) {
@@ -55,16 +56,32 @@ export class ToolCaller {
       `Task: Answer the user's question using ONLY the results above.\n` +
       `Rules: Do NOT call any tools. Do NOT output JSON. Write a natural, conversational response.`;
 
-    const response = await this.llm.chat([
+    const finalMessages = [
       { role: 'system', content: systemPrompt },
       ...messages,
       { role: 'user', content: `Tool results: ${JSON.stringify(toolResults)}` },
-    ]);
+    ];
+
+    logLlmPayload('ToolCaller Step 2', { messages: finalMessages });
+    const response = await this.llm.chat(finalMessages);
+    logLlmPayload('ToolCaller Step 2 Response', response);
+    const step2InputTokens =
+      typeof response?.prompt_eval_count === 'number' ? response.prompt_eval_count : null;
+    const step2OutputTokens = typeof response?.eval_count === 'number' ? response.eval_count : null;
+    const step2TotalTokens =
+      step2InputTokens !== null && step2OutputTokens !== null
+        ? step2InputTokens + step2OutputTokens
+        : null;
+    logLlmPayload('ToolCaller Step 2 Usage', {
+      inputTokens: step2InputTokens,
+      outputTokens: step2OutputTokens,
+      totalTokens: step2TotalTokens,
+    });
 
     const duration = Date.now() - startTime;
-    const inputTokens = response?.prompt_eval_count || 0;
-    const outputTokens = response?.eval_count || 0;
-    console.log(`📊 Step 2: ${inputTokens} in, ${outputTokens} out, ${duration}ms`);
+    const step2InputLog = step2InputTokens ?? 0;
+    const step2OutputLog = step2OutputTokens ?? 0;
+    console.log(`Step 2: ${step2InputLog} in, ${step2OutputLog} out, ${duration}ms`);
 
     return responseSanitiser(response?.message?.content || '');
   }
@@ -93,14 +110,34 @@ export class ToolCaller {
 
     const selectedTools = this.scorer.selectTools(messages, tools);
     const selectedNames = selectedTools.map(tool => tool.name).join(', ');
-    console.log(`🔎 Semantic tool selection: ${selectedNames || 'none'}`);
+    console.log(`Semantic tool selection: ${selectedNames || 'none'}`);
 
     const startTime = Date.now();
+    const toolMetadata = selectedTools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    }));
+
+    logLlmPayload('ToolCaller Step 1', { messages, tools: toolMetadata });
     const response = await this.llm.chat(messages, selectedTools);
+    logLlmPayload('ToolCaller Step 1 Response', response);
+    const step1InputTokens =
+      typeof response?.prompt_eval_count === 'number' ? response.prompt_eval_count : null;
+    const step1OutputTokens = typeof response?.eval_count === 'number' ? response.eval_count : null;
+    const step1TotalTokens =
+      step1InputTokens !== null && step1OutputTokens !== null
+        ? step1InputTokens + step1OutputTokens
+        : null;
+    logLlmPayload('ToolCaller Step 1 Usage', {
+      inputTokens: step1InputTokens,
+      outputTokens: step1OutputTokens,
+      totalTokens: step1TotalTokens,
+    });
     const duration = Date.now() - startTime;
-    const inputTokens = response?.prompt_eval_count || 0;
-    const outputTokens = response?.eval_count || 0;
-    console.log(`📊 Step 1: ${inputTokens} in, ${outputTokens} out, ${duration}ms`);
+    const step1InputLog = step1InputTokens ?? 0;
+    const step1OutputLog = step1OutputTokens ?? 0;
+    console.log(`Step 1: ${step1InputLog} in, ${step1OutputLog} out, ${duration}ms`);
 
     const toolCalls = this._normalizeToolCalls(
       response?.message?.tool_calls,
@@ -114,12 +151,12 @@ export class ToolCaller {
     const toolMap = new Map((tools || []).map(tool => [tool.name, tool]));
     const toolResults = [];
 
-    console.log('⚙️  Executing tools...');
+    console.log('Executing tools...');
     for (const call of toolCalls) {
       const toolName = call?.name;
       const tool = toolMap.get(String(toolName));
       if (!tool) {
-        console.log(`❌ Tool "${toolName}" not found`);
+        console.log(`Tool "${toolName}" not found`);
         toolResults.push({ name: toolName, error: `Tool ${toolName} not found` });
         continue;
       }
@@ -131,19 +168,19 @@ export class ToolCaller {
           roomId: execContext.roomId,
           services: execContext.services,
         };
-        console.log(`   🔧 ${tool.name}(${JSON.stringify(args)})`);
+        console.log(`   Tool ${tool.name}(${JSON.stringify(args)})`);
         const result = await tool.execute(args, toolContext);
         console.log(
-          `   ✓ ${tool.name} → ${JSON.stringify(result).substring(0, 100)}${JSON.stringify(result).length > 100 ? '...' : ''}`
+          `   Success ${tool.name} -> ${JSON.stringify(result).substring(0, 100)}${JSON.stringify(result).length > 100 ? '...' : ''}`
         );
         toolResults.push({ name: tool.name, result });
       } catch (error) {
-        console.log(`   ❌ ${tool.name} error: ${error.message}`);
+        console.log(`   Error ${tool.name}: ${error.message}`);
         toolResults.push({ name: tool.name, error: error.message });
       }
     }
 
-    console.log('💬 Generating final response...');
+    console.log('Generating final response...');
     const finalText = await this._requestFinalResponse(messages, toolResults);
     const summary = this._buildToolSummary(toolCalls);
     return summary ? `${finalText}${summary}` : finalText;

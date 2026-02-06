@@ -1,4 +1,4 @@
-const DEFAULT_MAX_TOOLS = 3;
+const DEFAULT_MAX_TOOLS = 8;
 const DEFAULT_STOPWORDS = new Set([
   'a',
   'an',
@@ -50,16 +50,28 @@ export class ToolSemanticScorer {
   }
 
   selectTools(messages, tools = []) {
-    if (!Array.isArray(tools) || tools.length === 0 || this.maxTools === 0) {
+    if (!Array.isArray(tools) || tools.length === 0) {
       return [];
     }
 
     const coreTools = tools.filter(tool => tool?.core);
     const remainingTools = tools.filter(tool => !tool?.core);
+
+    if (remainingTools.length === 0) {
+      return coreTools;
+    }
+
+    if (this.maxTools <= 0) {
+      return coreTools;
+    }
+
     const query = this._getLastUserMessage(messages);
     const scored = this._scoreTools(query, remainingTools);
+    const availableSlots = Math.max(this.maxTools - coreTools.length, 0);
+    const selectedNonCore =
+      availableSlots > 0 ? scored.slice(0, availableSlots).map(entry => entry.tool) : [];
 
-    return [...coreTools, ...scored.map(entry => entry.tool)].slice(0, this.maxTools);
+    return [...coreTools, ...selectedNonCore];
   }
 
   _getLastUserMessage(messages = []) {

@@ -43,32 +43,33 @@ export class OllamaClient {
     }
   }
 
-  _buildPromptToolSystemPrompt(tools = []) {
-    const toolSchemas = tools.map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters || { type: 'object', properties: {} },
-    }));
+  _mapTools(tools = []) {
+    if (!Array.isArray(tools) || tools.length === 0) {
+      return undefined;
+    }
 
-    return (
-      `You may use tools to answer the user. ` +
-      `If a tool is needed, respond ONLY with JSON: ` +
-      `{"tool_calls":[{"name":"tool_name","arguments":{...}}]}. ` +
-      `If no tool is needed, respond normally. ` +
-      `Tools: ${JSON.stringify(toolSchemas)}`
-    );
+    return tools.map(tool => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters || { type: 'object', properties: {} },
+      },
+    }));
   }
 
   async chat(messages, tools = null, _options = {}) {
-    const promptTooling = Array.isArray(tools) && tools.length > 0;
-    const toolPrompt = promptTooling
-      ? [{ role: 'system', content: this._buildPromptToolSystemPrompt(tools) }]
-      : [];
+    const safeMessages = Array.isArray(messages) ? messages.map(m => ({ ...m })) : [];
+    const mappedTools = this._mapTools(tools);
     const options = {
       model: this.model,
-      messages: [...toolPrompt, ...messages],
+      messages: safeMessages,
       stream: false,
     };
+
+    if (mappedTools) {
+      options.tools = mappedTools;
+    }
 
     try {
       const response = await this.client.chat(options);

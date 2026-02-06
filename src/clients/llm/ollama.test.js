@@ -94,5 +94,62 @@ describe('OllamaClient', () => {
       assert.strictEqual(result.prompt_eval_count, 150);
       assert.strictEqual(result.eval_count, 75);
     });
+
+    test('should pass mapped tools to Ollama when provided', async () => {
+      const tools = [
+        {
+          name: 'search',
+          description: 'Search Wikipedia',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+            },
+          },
+        },
+      ];
+
+      const expectedTools = [
+        {
+          type: 'function',
+          function: {
+            name: 'search',
+            description: 'Search Wikipedia',
+            parameters: tools[0].parameters,
+          },
+        },
+      ];
+
+      const originalMessages = [{ role: 'user', content: 'Need gout info' }];
+
+      client.client.chat = mock.fn(async options => {
+        assert.deepStrictEqual(options.tools, expectedTools);
+        assert.strictEqual(options.messages.length, 1);
+        assert.strictEqual(options.messages[0].content, 'Need gout info');
+
+        return {
+          message: { role: 'assistant', content: 'ok' },
+          prompt_eval_count: 1,
+          eval_count: 1,
+        };
+      });
+
+      await client.chat(originalMessages, tools);
+
+      assert.strictEqual(originalMessages[0].content, 'Need gout info');
+    });
+
+    test('should omit tools option when none are provided', async () => {
+      client.client.chat = mock.fn(async options => {
+        assert.ok(!Object.prototype.hasOwnProperty.call(options, 'tools'));
+        return {
+          message: { role: 'assistant', content: 'ok' },
+          prompt_eval_count: 1,
+          eval_count: 1,
+        };
+      });
+
+      await client.chat([{ role: 'user', content: 'Ping' }]);
+    });
   });
 });

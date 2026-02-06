@@ -1,6 +1,7 @@
 import { ToolCaller } from '../lib/toolCaller.js';
 import { responseSanitiser } from '../lib/responseSanitiser.js';
 import { Memory } from '../lib/memory.js';
+import { logLlmPayload, resetLlmLog } from '../lib/llmLogger.js';
 
 export class Agent {
   constructor(llmClient, tools = [], config = {}) {
@@ -50,6 +51,7 @@ export class Agent {
   async processMessage(userMessage, metadata = {}) {
     const { userId = null, roomId = null, systemPromptAddon = '' } = metadata || {};
     const userName = userId;
+    resetLlmLog();
     // Add user message to history
     this.conversationHistory.push({
       role: 'user',
@@ -77,12 +79,24 @@ export class Agent {
           services: this.services,
         });
       } else {
+        logLlmPayload('Agent', { messages });
         const response = await this.llm.chat(messages);
+        logLlmPayload('Agent Response', response);
+        const inputTokens =
+          typeof response?.prompt_eval_count === 'number' ? response.prompt_eval_count : null;
+        const outputTokens = typeof response?.eval_count === 'number' ? response.eval_count : null;
+        const totalTokens =
+          inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens : null;
+        logLlmPayload('Agent Usage', {
+          inputTokens,
+          outputTokens,
+          totalTokens,
+        });
         assistantMessage = responseSanitiser(response?.message?.content);
       }
 
       if (!assistantMessage) {
-        console.warn('⚠️ Empty response from LLM');
+        console.warn('Warning: Empty response from LLM');
         assistantMessage =
           'I apologize, but I forgot what I wanted to say. This might be a temporary issue. Could you please ask your question again?';
       }
