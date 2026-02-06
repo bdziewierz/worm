@@ -59,6 +59,12 @@ This project is a personal AI assistant using Ollama LLM and Matrix chat. Read A
 - Semantic selection is capped by `MAX_TOOLS`; core tools configured in `CORE_TOOLS` always survive that cap, so update README/.env docs whenever you change either list or default
 - Any change to these heuristics or defaults must be reflected in README.md and ARCHITECTURE.md so operators know how to tune their deployments
 
+### Per-user Conversation History
+
+- Histories are stored per user (and cron job owner) under `memory/history/` via `HistoryStore`
+- Each request loads only that user’s turns, trims them with `MAX_HISTORY` + the token budget manager, and then re-saves the trimmed subset so restart state stays consistent
+- If you change how histories are persisted or loaded, update README.md and ARCHITECTURE.md plus mention any new storage knobs in `.env.example`
+
 ### 1. Tool System
 
 Tools are the primary extension point. Each tool is a self-contained module:

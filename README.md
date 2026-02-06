@@ -166,6 +166,13 @@ WORM now enforces per-turn token budgets so you can stay within the constraints 
 
 These knobs are configurable per deployment so you can tailor the prompt size to a 4K local context or a 32K cloud model without touching code.
 
+## Conversation History Persistence
+
+- Each Matrix user (and any cron job tied to that user) gets a dedicated conversation log stored under `memory/history/` (file names are hashed for safety)
+- Histories are loaded on demand, trimmed with `MAX_HISTORY` + the token budget manager, and then written back so restarts keep the latest context intact
+- Cron reminders reuse the job owner’s history, so automated actions stay scoped without leaking other users’ conversations
+- Delete or clear files in `memory/history/` (or call `Agent.clearHistory(userId)`) if you need a clean slate for a specific user
+
 ## Available Tools
 
 The assistant comes with several built-in tools:

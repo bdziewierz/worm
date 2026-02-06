@@ -175,15 +175,16 @@ worm/
   - **Constraint**: Must be concise to preserve context for conversation
   - Includes: agent name, personality, current time, sender's Matrix user ID
 - TokenBudgetManager estimates prompt size using a lightweight heuristic and enforces the configured budgets before delegating to the LLM
+- Per-user HistoryStore persists conversation logs under `memory/history/`, keyed by user ID (hashed) so each Matrix user and cron job owner keeps isolated context that survives restarts
 - ToolCaller selects a small tool subset via semantic search, then handles tool execution
   - Agent just passes messages and tools, receives final response
   - No tool result management needed in Agent
 
 **Conversation Flow:**
 
-1. User message → Add to history
+1. User message → Load that user’s history from disk, append the new turn, and scope all following steps to that user only
 2. Build system prompt with user context (name, personality, timestamp, sender)
-3. TokenBudgetManager trims history/tool payloads to stay within `MAX_CONTEXT_TOKENS - RESPONSE_TOKEN_BUFFER`
+3. TokenBudgetManager trims history/tool payloads to stay within `MAX_CONTEXT_TOKENS - RESPONSE_TOKEN_BUFFER`, then the trimmed result overwrites the persisted history for that user
 4. If tools registered → Delegate to ToolCaller (semantic selection + tool calling)
 5. If no tools → Direct llm.chat() call
 6. Add assistant response to history
