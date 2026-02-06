@@ -97,7 +97,9 @@ export class Agent {
         });
       } else {
         logLlmPayload('Agent', { messages });
+        const startTime = Date.now();
         const response = await this.llm.chat(messages);
+        const duration = Date.now() - startTime;
         logLlmPayload('Agent Response', response);
         const inputTokens =
           typeof response?.prompt_eval_count === 'number' ? response.prompt_eval_count : null;
@@ -108,6 +110,7 @@ export class Agent {
           inputTokens,
           outputTokens,
           totalTokens,
+          durationMs: duration,
         });
         assistantMessage = responseSanitiser(response?.message?.content);
       }

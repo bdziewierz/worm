@@ -77,13 +77,13 @@ export class ToolCaller {
       step2InputTokens !== null && step2OutputTokens !== null
         ? step2InputTokens + step2OutputTokens
         : null;
+    const duration = Date.now() - startTime;
     logLlmPayload('ToolCaller Step 2 Usage', {
       inputTokens: step2InputTokens,
       outputTokens: step2OutputTokens,
       totalTokens: step2TotalTokens,
+      durationMs: duration,
     });
-
-    const duration = Date.now() - startTime;
     const step2InputLog = step2InputTokens ?? 0;
     const step2OutputLog = step2OutputTokens ?? 0;
     console.log(`Step 2: ${step2InputLog} in, ${step2OutputLog} out, ${duration}ms`);
@@ -137,12 +137,13 @@ export class ToolCaller {
       step1InputTokens !== null && step1OutputTokens !== null
         ? step1InputTokens + step1OutputTokens
         : null;
+    const duration = Date.now() - startTime;
     logLlmPayload('ToolCaller Step 1 Usage', {
       inputTokens: step1InputTokens,
       outputTokens: step1OutputTokens,
       totalTokens: step1TotalTokens,
+      durationMs: duration,
     });
-    const duration = Date.now() - startTime;
     const step1InputLog = step1InputTokens ?? 0;
     const step1OutputLog = step1OutputTokens ?? 0;
     console.log(`Step 1: ${step1InputLog} in, ${step1OutputLog} out, ${duration}ms`);
