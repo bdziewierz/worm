@@ -170,7 +170,7 @@ These knobs are configurable per deployment so you can tailor the prompt size to
 
 - Each Matrix user (and any cron job tied to that user) gets a dedicated conversation log stored under `memory/history/` (file names are hashed for safety)
 - Histories are loaded on demand, trimmed with `MAX_HISTORY` + the token budget manager, and then written back so restarts keep the latest context intact
-- Cron reminders reuse the job owner’s history, so automated actions stay scoped without leaking other users’ conversations
+- Remind jobs reuse the owner’s chat history so follow-up context remains available, while headless cron jobs skip history entirely to keep prompts small
 - Delete or clear files in `memory/history/` (or call `Agent.clearHistory(userId)`) if you need a clean slate for a specific user
 
 ## Available Tools
@@ -180,7 +180,8 @@ The assistant comes with several built-in tools:
 - **get_current_time**: Get current date and time with timezone support
 - **calculate**: Perform mathematical calculations
 - **get_weather**: Get weather information (mock - needs real API integration)
-- **cron**: Schedule recurring commands/reminders (supports types like reminder, command, check_in, status, follow_up)
+- **remind** ([src/tools/remind.js](src/tools/remind.js)): Schedule friendly chat reminders that run through the normal conversation pipeline (appears in-room, full history available)
+- **cron** ([src/tools/cron.js](src/tools/cron.js)): Schedule headless automation commands (no chat output; responses are logged to `memory/cron-runs.log` for auditing — override via `CRON_RUN_LOG_PATH` if needed)
 
 ### Adding New Tools
 

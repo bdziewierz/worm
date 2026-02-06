@@ -18,6 +18,7 @@ import { rememberTool } from './remember.js';
 import { recallTool } from './recall.js';
 import { fetchTool } from './fetch.js';
 import { cronTool } from './cron.js';
+import { remindTool } from './remind.js';
 
 // Parse core tools from environment (comma-separated list)
 function getCoreToolNames() {
@@ -52,6 +53,7 @@ export function getTools() {
     rememberTool,
     recallTool,
     fetchTool,
+    remindTool,
     cronTool,
   ];
 

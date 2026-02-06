@@ -65,6 +65,13 @@ This project is a personal AI assistant using Ollama LLM and Matrix chat. Read A
 - Each request loads only that user’s turns, trims them with `MAX_HISTORY` + the token budget manager, and then re-saves the trimmed subset so restart state stays consistent
 - If you change how histories are persisted or loaded, update README.md and ARCHITECTURE.md plus mention any new storage knobs in `.env.example`
 
+### Scheduling Tools
+
+- `remind` schedules chat-facing reminders (responses go back to Matrix and use the user’s history)
+- `cron` is now headless—responses never hit the room; log outcomes to `memory/cron-runs.log` instead
+- Implementations live in [src/tools/remind.js](src/tools/remind.js) and [src/tools/cron.js](src/tools/cron.js), which both rely on [src/tools/schedulerToolFactory.js](src/tools/schedulerToolFactory.js) for shared validation logic
+- When modifying these tools or the dispatcher, keep the behaviors distinct and document any new job fields in README/ARCHITECTURE
+
 ### 1. Tool System
 
 Tools are the primary extension point. Each tool is a self-contained module:

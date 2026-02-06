@@ -77,6 +77,8 @@ export class CronService {
       remainingRuns,
       status: job.status,
       roomId: job.roomId,
+      type: job.type,
+      delivery: job.delivery || 'chat',
     };
   }
 
@@ -128,6 +130,7 @@ export class CronService {
     startAt = null,
     maxRuns = null,
     type = 'reminder',
+    delivery = 'chat',
   }) {
     if (!userId) {
       throw new Error('userId is required');
@@ -173,12 +176,15 @@ export class CronService {
       throw new Error('No job slots available. Cancel an existing job first.');
     }
 
+    const normalizedDelivery = delivery === 'headless' ? 'headless' : 'chat';
+
     const job = {
       id: jobId,
       userId,
       roomId,
       command: command.trim(),
       type,
+      delivery: normalizedDelivery,
       intervalMinutes,
       startAt: toIso(startMs),
       nextRunAt: nextRunIso,

@@ -1,5 +1,7 @@
+import { logCronRun } from './cronRunLogger.js';
+
 export class ScheduledMessageDispatcher {
-  constructor({ agent, messagingClient }) {
+  constructor({ agent, messagingClient, headlessLogger = logCronRun }) {
     if (!agent) {
       throw new Error('ScheduledMessageDispatcher requires an agent');
     }
@@ -8,6 +10,7 @@ export class ScheduledMessageDispatcher {
     }
     this.agent = agent;
     this.messagingClient = messagingClient;
+    this.headlessLogger = headlessLogger;
   }
 
   async dispatch(job) {
@@ -30,6 +33,13 @@ export class ScheduledMessageDispatcher {
       `Cron jobs are usually automated reminders for the user that you need to repeat directly, ` +
       `or commands for you to follow. Always repeat the user message back to the user.`;
 
+    const deliveryMode = job.delivery || 'chat';
+
+    if (deliveryMode === 'headless') {
+      await this._dispatchHeadless(job, cronSystemPrompt);
+      return;
+    }
+
     await this.messagingClient.setTyping(job.roomId, true, 10000);
     try {
       const response = await this.agent.processMessage(job.command, {
@@ -46,6 +56,39 @@ export class ScheduledMessageDispatcher {
       throw error;
     } finally {
       await this.messagingClient.setTyping(job.roomId, false);
+    }
+  }
+
+  async _dispatchHeadless(job, cronSystemPrompt) {
+    try {
+      const response = await this.agent.processMessage(job.command, {
+        userId: job.userId,
+        roomId: job.roomId,
+        jobId: job.id,
+        source: 'cron',
+        systemPromptAddon: cronSystemPrompt,
+        persistHistory: false,
+      });
+      await this.headlessLogger({
+        jobId: job.id,
+        userId: job.userId,
+        roomId: job.roomId,
+        type: job.type,
+        delivery: job.delivery || 'chat',
+        command: job.command,
+        response,
+      });
+    } catch (error) {
+      await this.headlessLogger({
+        jobId: job.id,
+        userId: job.userId,
+        roomId: job.roomId,
+        type: job.type,
+        delivery: job.delivery || 'chat',
+        command: job.command,
+        error: error.message,
+      });
+      throw error;
     }
   }
 }

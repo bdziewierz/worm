@@ -59,7 +59,7 @@ class StubCronService {
   }
 }
 
-describe('cron tool', () => {
+describe('cron tool (headless)', () => {
   test('requires cron service to be available', async () => {
     const result = await cronTool.execute({ action: 'list' }, { userId: '@user', roomId: '!room' });
     assert.ok(result.error.includes('Cron service'));
@@ -75,6 +75,7 @@ describe('cron tool', () => {
 
     assert.strictEqual(result.success, true);
     assert.strictEqual(result.job.id, '1');
+    assert.strictEqual(result.job.delivery, 'headless');
     assert.ok(result.info.includes('#1'));
   });
 

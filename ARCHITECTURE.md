@@ -325,7 +325,8 @@ Each tool must export an object with:
 - `get_current_time` - Date/time with timezone support
 - `calculate` - Safe mathematical expression evaluation
 - `get_weather` - Mock weather tool (placeholder for real API)
-- `cron` - Schedule recurring commands/reminders (types: reminder, command, check_in, status, follow_up)
+- `remind` - Schedule recurring chat reminders that surface in-room with full history
+- `cron` - Schedule headless recurring commands (responses logged to `memory/cron-runs.log`)
 
 **Adding New Tools:**
 
@@ -495,10 +496,17 @@ This layered approach ensures the agent remains agnostic to specific vendors whi
 
 #### Components
 
+- `src/tools/schedulerToolFactory.js`
+  - Centralizes validation, parameter schema, and scheduling logic shared by both scheduler tools.
+  - Guarantees consistent caps (command length, interval bounds, max job slots) before delegating to the service layer.
+- `src/tools/remind.js`
+  - Chat-facing scheduler that posts reminders back to Matrix with the user’s conversation history intact.
+  - Wraps the shared factory with `delivery: chat`, fixed `reminder` type, and reminder-specific metadata.
 - `src/tools/cron.js`
-  - Multi-action tool with an `action` enum (`schedule`, `list`, `cancel`).
-  - Validates concise commands (<300 chars), minimum interval (5 minutes), and per-user job caps (max 5 active) before delegating.
-  - Delegates all stateful work to the service layer; the tool stays pure.
+  - Headless automation entry point that never posts to chat; results are logged via `cronRunLogger` instead.
+  - Uses the shared factory with `delivery: headless` and command semantics.
+- `src/lib/cronRunLogger.js`
+  - Minimal append-only logger that writes headless job outcomes to `memory/cron-runs.log` for auditing.
 - `src/lib/cronStore.js`
   - JSON-backed persistence modeled after `Memory`, but scoped to scheduled jobs.
   - Stores each user's jobs in `memory/cron/<user-hash>.json` with write-through updates and FIFO eviction when caps are exceeded.
@@ -508,7 +516,7 @@ This layered approach ensures the agent remains agnostic to specific vendors whi
   - Wraps Node timers in a single scheduler loop that throttles concurrent executions (max one fired job per second) to protect low-VRAM devices.
 - Synthetic message bridge (`src/lib/scheduledMessageDispatcher.js`)
   - Converts due jobs into pseudo-user messages so the agent, ToolCaller, and Matrix clients handle them like normal traffic.
-  - Method signature: `dispatch({ userId, text, jobId })` → agent → Matrix room.
+  - Sends reminders to the room with typing indicators, but routes headless jobs through the agent with `persistHistory: false` and logs the output instead of chatting.
 
 #### Job Data Model
 
@@ -516,6 +524,8 @@ This layered approach ensures the agent remains agnostic to specific vendors whi
 {
   "id": "1",
   "userId": "@alice:matrix.org",
+  "type": "command",
+  "delivery": "headless",
   "intervalMinutes": 30,
   "command": "Check BTC price and summarize",
   "startAt": "2026-02-02T08:00:00.000Z",
@@ -537,7 +547,7 @@ This layered approach ensures the agent remains agnostic to specific vendors whi
 2. Tool validation → ensures `context.userId`, clamps intervals, enforces per-user caps.
 3. Persist + register → `cronService.schedule()` writes to cronStore and arms the timer.
 4. Tick loop → when `Date.now() >= nextRunAt`, cronService enqueues the job.
-5. Dispatch → scheduledMessageDispatcher feeds the command into the agent as a synthetic message; the usual ToolCaller + Matrix reply path handles the response.
+5. Dispatch → scheduledMessageDispatcher feeds the command into the agent; reminders post responses back to the room, while headless cron jobs call the agent with `persistHistory: false` and write outputs to `memory/cron-runs.log`.
 6. Bookkeeping → `lastRunAt`, `runCount`, and `nextRunAt` update; job transitions to `completed` once limits are met.
 
 #### Listing and Cancellation
@@ -551,7 +561,7 @@ This layered approach ensures the agent remains agnostic to specific vendors whi
 - **Durability**: `cronService.restore()` runs before Matrix login so jobs survive restarts.
 - **Throttling**: Due jobs enter an in-memory FIFO; the dispatcher pops at most one per second to prevent tool-call storms.
 - **Safety**: Jobs inherit the creator's `userId`, so existing allowlist rules and history caps still apply. No scheduling for anonymous contexts.
-- **Observability**: Lifecycle logs (`scheduled`, `fired`, `cancelled`, `errored`) include jobId and userId. Execution failures DM the owner with the error payload.
+- **Observability**: Lifecycle logs (`scheduled`, `fired`, `cancelled`, `errored`) include jobId and userId. Headless runs append their outputs (or errors) to `memory/cron-runs.log`, while reminder failures still notify the room.
 - **Testing**: Unit tests mock timers to cover schedule, restore, cancellation, and dispatch without waiting for real time.
 
 This split keeps the cron tool stateless while delegating long-lived responsibilities to purpose-built services, aligning with WORM's separation-of-concerns constraints.
