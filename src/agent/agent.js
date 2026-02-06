@@ -2,6 +2,7 @@ import { ToolCaller } from '../lib/toolCaller.js';
 import { responseSanitiser } from '../lib/responseSanitiser.js';
 import { Memory } from '../lib/memory.js';
 import { logLlmPayload, resetLlmLog } from '../lib/llmLogger.js';
+import { TokenBudgetManager } from '../lib/tokenBudgetManager.js';
 
 export class Agent {
   constructor(llmClient, tools = [], config = {}) {
@@ -13,8 +14,17 @@ export class Agent {
     this.background = config.background || '';
     this.speakingStyle = config.speakingStyle || '';
     this.systemPrompt = this._buildSystemPrompt();
-    this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : 5;
-    this.toolCaller = new ToolCaller(llmClient);
+    this.maxHistory = Number.isInteger(config.maxHistory) ? config.maxHistory : null;
+    this.maxTools = Number.isInteger(config.maxTools) ? config.maxTools : null;
+    this.tokenBudget = new TokenBudgetManager({
+      maxContextTokens: config.maxContextTokens,
+      responseBufferTokens: config.responseBufferTokens,
+      maxToolContextTokens: config.maxToolContextTokens,
+    });
+    this.toolCaller = new ToolCaller(llmClient, {
+      tokenBudget: this.tokenBudget,
+      maxTools: this.maxTools,
+    });
     this.memory = new Memory();
     this.services = config.services || {};
   }
@@ -58,16 +68,18 @@ export class Agent {
       content: userMessage,
     });
 
-    // Keep conversation history manageable
-    if (this.conversationHistory.length > this.maxHistory) {
-      this.conversationHistory = this.conversationHistory.slice(-this.maxHistory);
+    if (Number.isInteger(this.maxHistory) && this.maxHistory > 0) {
+      if (this.conversationHistory.length > this.maxHistory) {
+        this.conversationHistory = this.conversationHistory.slice(-this.maxHistory);
+      }
     }
 
     const baseSystemPrompt = await this._buildSystemPrompt(userName);
     const systemPrompt = systemPromptAddon
       ? `${baseSystemPrompt}\n\n${systemPromptAddon}`
       : baseSystemPrompt;
-    const messages = [{ role: 'system', content: systemPrompt }, ...this.conversationHistory];
+    const rawMessages = [{ role: 'system', content: systemPrompt }, ...this.conversationHistory];
+    const messages = this.tokenBudget.enforceMessageBudget(rawMessages);
 
     try {
       let assistantMessage;

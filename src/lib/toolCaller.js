@@ -6,6 +6,7 @@ export class ToolCaller {
   constructor(llmClient, options = {}) {
     this.llm = llmClient;
     this.scorer = new ToolSemanticScorer({ maxTools: options.maxTools });
+    this.tokenBudget = options.tokenBudget || null;
   }
 
   _parseJsonObject(text) {
@@ -62,8 +63,12 @@ export class ToolCaller {
       { role: 'user', content: `Tool results: ${JSON.stringify(toolResults)}` },
     ];
 
-    logLlmPayload('ToolCaller Step 2', { messages: finalMessages });
-    const response = await this.llm.chat(finalMessages);
+    const boundedMessages = this.tokenBudget
+      ? this.tokenBudget.enforceMessageBudget(finalMessages)
+      : finalMessages;
+
+    logLlmPayload('ToolCaller Step 2', { messages: boundedMessages });
+    const response = await this.llm.chat(boundedMessages);
     logLlmPayload('ToolCaller Step 2 Response', response);
     const step2InputTokens =
       typeof response?.prompt_eval_count === 'number' ? response.prompt_eval_count : null;
@@ -109,18 +114,21 @@ export class ToolCaller {
     };
 
     const selectedTools = this.scorer.selectTools(messages, tools);
-    const selectedNames = selectedTools.map(tool => tool.name).join(', ');
+    const boundedTools = this.tokenBudget
+      ? this.tokenBudget.limitTools(selectedTools)
+      : selectedTools;
+    const selectedNames = boundedTools.map(tool => tool.name).join(', ');
     console.log(`Semantic tool selection: ${selectedNames || 'none'}`);
 
     const startTime = Date.now();
-    const toolMetadata = selectedTools.map(tool => ({
+    const toolMetadata = boundedTools.map(tool => ({
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters,
     }));
 
     logLlmPayload('ToolCaller Step 1', { messages, tools: toolMetadata });
-    const response = await this.llm.chat(messages, selectedTools);
+    const response = await this.llm.chat(messages, boundedTools);
     logLlmPayload('ToolCaller Step 1 Response', response);
     const step1InputTokens =
       typeof response?.prompt_eval_count === 'number' ? response.prompt_eval_count : null;

@@ -22,17 +22,17 @@ The agent is designed to run on **consumer-grade hardware** with limited context
 - **Quantization**: Q4 quantization required (~13.5GB for Gemma, ~16GB for Qwen)
 - **Realistic Context Window**: 4K-8K tokens (hardware-limited, not model-limited)
   - Model may support larger context theoretically, but VRAM limits KV cache
-  - Conservative target: 4K tokens for system + conversation + tools
-  - Optimistic: 8K tokens with efficient attention
-- **Prompt Constraints**: System prompt + conversation history + tool schemas must fit in 4K-8K tokens
-- **History Limit**: 10 messages maximum to preserve context window space
+  - Conservative target: keep prompts under 4K tokens; optimistic target 8K with efficient attention
+- **Prompt Constraints**: System prompt + conversation history + tool schemas must stay within a configurable budget (`MAX_CONTEXT_TOKENS`)
+- **Dynamic Trim Rules**: A token-budget manager automatically drops older turns and extra tool schemas when the prompt would exceed the configured budget
+- **Optional History Cap**: `MAX_HISTORY` can still be used to force a hard ceiling on stored turns when desired
 - **Tool Descriptions**: Keep concise - LLM reads all tool schemas on every request
 - **System Prompt**: Minimal and focused - generated once, sent with every message
 
 **Design Implications:**
 
-- Avoid verbose tool descriptions
-- Keep conversation history small (currently 10 messages)
+- Avoid verbose tool descriptions so they stay within `MAX_TOOL_CONTEXT_TOKENS`
+- Let the token budget manager prune history automatically, or lower `MAX_HISTORY` when a fixed cap is required
 - Don't accumulate tool results indefinitely
 - System prompt must be concise and essential-only
 - No complex multi-step reasoning chains that consume context
@@ -166,15 +166,15 @@ worm/
 - Delegate to ToolCaller for tool-based interactions
 - Handle direct LLM chat when no tools registered
 
-**Key Design Decisions:**
+- **Key Design Decisions:**
 
-- Maintains conversation history (configurable via MAX_HISTORY, default 5) for context
-  - **Rationale**: Limit kept low for consumer-grade hardware (4K-8K effective context)
-  - Prevents context overflow on Gemma 3 27B / Qwen 3 32B at Q4 quantization
-  - Hardware (VRAM) limits KV cache, not model architecture
+- Maintains conversation history with an optional `MAX_HISTORY` cap, then relies on the token budget manager to drop the oldest turns when necessary
+  - **Rationale**: Keep prompts within user-defined budgets tailored to 4K–8K effective contexts
+  - `MAX_CONTEXT_TOKENS` plus `RESPONSE_TOKEN_BUFFER` guarantee the model always has reply headroom
 - System prompt is generated per-message with current timestamp and sender info
   - **Constraint**: Must be concise to preserve context for conversation
   - Includes: agent name, personality, current time, sender's Matrix user ID
+- TokenBudgetManager estimates prompt size using a lightweight heuristic and enforces the configured budgets before delegating to the LLM
 - ToolCaller selects a small tool subset via semantic search, then handles tool execution
   - Agent just passes messages and tools, receives final response
   - No tool result management needed in Agent
@@ -183,10 +183,11 @@ worm/
 
 1. User message → Add to history
 2. Build system prompt with user context (name, personality, timestamp, sender)
-3. If tools registered → Delegate to ToolCaller (semantic selection + tool calling)
-4. If no tools → Direct llm.chat() call
-5. Add assistant response to history
-6. Return response to user
+3. TokenBudgetManager trims history/tool payloads to stay within `MAX_CONTEXT_TOKENS - RESPONSE_TOKEN_BUFFER`
+4. If tools registered → Delegate to ToolCaller (semantic selection + tool calling)
+5. If no tools → Direct llm.chat() call
+6. Add assistant response to history
+7. Return response to user
 
 **ToolCaller Integration:**
 
@@ -283,8 +284,9 @@ Semantic tool selection keeps prompts small for consumer-grade hardware by sendi
 
 - Tokenize user query and tool metadata (name, description, category, keywords)
 - Compute similarity (TF-IDF + cosine) and rank tools
-- Always cap the selection to **3 tools maximum**
-- Core tools (if configured) are prioritized within the cap
+- Cap the selection with `MAX_TOOLS` (default 8) so only the most relevant definitions are considered
+- Core tools (if configured via `CORE_TOOLS`) are prioritized within that cap
+- After semantic selection, TokenBudgetManager enforces `MAX_TOOL_CONTEXT_TOKENS` to ensure the serialized schemas still fit inside the global prompt budget
 
 **Design:**
 
@@ -736,11 +738,9 @@ If integrating another service:
 
 ### Current Optimizations
 
-- Conversation history limited to 10 messages
-  - **Primary Purpose**: Context window management for consumer-grade hardware
-  - **Target**: Gemma 3 27B, Qwen 3 32B at Q4 quantization (4K-8K effective context)
-  - **Hardware Constraint**: 24GB VRAM limits KV cache size, not model capability
-  - **Secondary**: Memory management in Node.js
+- Conversation history dynamically trimmed by TokenBudgetManager
+  - **Primary Purpose**: Keep prompts within `MAX_CONTEXT_TOKENS` for consumer-grade hardware (Gemma 3 27B, Qwen 3 32B at Q4)
+  - **Optional**: `MAX_HISTORY` still enforces a hard cap when operators prefer it
 - Old messages ignored (prevents backlog processing)
 - Streaming disabled (simpler implementation, predictable timing)
 - Concise tool descriptions (LLM reads all tool schemas on every request)

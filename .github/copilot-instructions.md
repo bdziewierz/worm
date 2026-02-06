@@ -31,6 +31,7 @@ This project is a personal AI assistant using Ollama LLM and Matrix chat. Read A
 - Each conversation message: <200 tokens average
 - Tool results: <200 tokens each
 - Total budget: Stay well under 4K tokens to be safe
+- Enforce these budgets via `MAX_CONTEXT_TOKENS`, `RESPONSE_TOKEN_BUFFER`, `MAX_TOOL_CONTEXT_TOKENS`, and `MAX_HISTORY` (defaults live in `.env.example` and must stay documented in README/ARCHITECTURE)
 
 **When writing code:**
 
@@ -50,6 +51,13 @@ This project is a personal AI assistant using Ollama LLM and Matrix chat. Read A
 - **Architecture**: Agent-based with extensible tool system
 
 ## Key Architectural Patterns
+
+### Token Budget Manager & Tool Limits
+
+- `TokenBudgetManager` (see `src/lib/tokenBudgetManager.js`) estimates prompt cost with the 4-chars-per-token heuristic and prunes middle history entries until the prompt fits `MAX_CONTEXT_TOKENS - RESPONSE_TOKEN_BUFFER`
+- Tool schemas pass through the same manager via `MAX_TOOL_CONTEXT_TOKENS`, guaranteeing at least one tool remains even when the budget is tiny
+- Semantic selection is capped by `MAX_TOOLS`; core tools configured in `CORE_TOOLS` always survive that cap, so update README/.env docs whenever you change either list or default
+- Any change to these heuristics or defaults must be reflected in README.md and ARCHITECTURE.md so operators know how to tune their deployments
 
 ### 1. Tool System
 
@@ -258,6 +266,9 @@ if (missing.length > 0) {
   process.exit(1);
 }
 ```
+
+- Keep `.env.example` in sync with every new knob (context budgets, tool caps, cron settings, etc.) and mirror those descriptions in README.md
+- `LLM_LOGGING` toggles the JSONL payload logger under `memory/`; document any new fields or side effects when modifying the logging pipeline
 
 ## Component Responsibilities
 

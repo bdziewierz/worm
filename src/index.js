@@ -121,13 +121,20 @@ async function main() {
     // Initialize agent with tools
     const services = {};
     const tools = getTools();
+    const parsedMaxTools = Number.parseInt(process.env.MAX_TOOLS, 10);
     const agent = new Agent(llmDispatcher, tools, {
-      maxHistory: parseInt(process.env.MAX_HISTORY, 10) || 5,
+      maxHistory: Number.isInteger(parseInt(process.env.MAX_HISTORY, 10))
+        ? parseInt(process.env.MAX_HISTORY, 10)
+        : null,
       name: process.env.NAME,
       personality: process.env.PERSONALITY,
       background: process.env.BACKGROUND,
       speakingStyle: process.env.SPEAKING_STYLE,
       services,
+      maxContextTokens: Number.parseInt(process.env.MAX_CONTEXT_TOKENS, 10) || 16000,
+      responseBufferTokens: Number.parseInt(process.env.RESPONSE_TOKEN_BUFFER, 10) || 1024,
+      maxToolContextTokens: Number.parseInt(process.env.MAX_TOOL_CONTEXT_TOKENS, 10) || 4000,
+      maxTools: Number.isInteger(parsedMaxTools) ? parsedMaxTools : null,
     });
     if (channelProvider === 'matrix') {
       const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS

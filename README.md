@@ -10,7 +10,7 @@ A command-line Node.js application that acts as a personal AI assistant with a p
 - 🔒 **User Access Control**: Allowlist system to restrict who can use the assistant
 - 🔧 **Extensible Tools**: Easy to add new tools and capabilities
 - 🌐 **Flexible LLM Providers**: Works with self-hosted Ollama or cloud APIs (Gemini, Mistral)
-- 🪙 **Token-Efficient Design**: Aggressively optimizes prompts so even local models with tight 4K–8K windows remain viable
+- 🪙 **Token-Efficient Design**: Dynamic context budgeting keeps prompts under hardware-friendly limits
 - ⚡ **Modern Node.js**: Uses ESM modules and latest Node.js features (v20+)
 - 📊 **Performance Monitoring**: Token usage and timing metrics for each stage
 
@@ -86,7 +86,13 @@ MATRIX_ALLOWED_ROOMS=
 # Assistant Configuration
 NAME=WORM
 PERSONALITY=Helpful, concise, and direct.
-MAX_HISTORY=5
+MAX_HISTORY=5                     # Optional hard cap on stored turns (can be blank)
+
+# Context budgeting (tokens)
+MAX_CONTEXT_TOKENS=16000          # Total prompt budget (system + history + tools)
+RESPONSE_TOKEN_BUFFER=1024        # Space reserved for model replies
+MAX_TOOL_CONTEXT_TOKENS=4000      # Budget for tool schemas per turn
+MAX_TOOLS=8                       # Semantic selection ceiling before budgeting
 ```
 
 ## Getting Matrix Access Token
@@ -147,6 +153,18 @@ The assistant will:
 2. Join your Matrix room
 3. Listen for messages and respond with AI-powered answers
 4. Execute tools when needed
+
+## Context Budget Controls
+
+WORM now enforces per-turn token budgets so you can stay within the constraints of local GPUs or metered APIs.
+
+- `MAX_CONTEXT_TOKENS`: Upper bound for system prompt + user/assistant history + tool schemas. Anything beyond this is trimmed.
+- `RESPONSE_TOKEN_BUFFER`: Guaranteed headroom for the model’s reply. The agent only sends prompts if at least this many tokens remain.
+- `MAX_TOOL_CONTEXT_TOKENS`: Budget for serialized tool definitions each turn. If semantic selection chooses more tools than the budget allows, the lowest-priority ones are dropped before hitting the model.
+- `MAX_TOOLS`: Hard ceiling for how many tools the semantic router can return before budgeting occurs.
+- `MAX_HISTORY`: Optional limit on stored conversation turns. Leave blank to let the token budget alone decide how much history fits.
+
+These knobs are configurable per deployment so you can tailor the prompt size to a 4K local context or a 32K cloud model without touching code.
 
 ## Available Tools
 
