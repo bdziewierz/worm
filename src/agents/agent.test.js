@@ -71,6 +71,31 @@ describe('Agent conversation history', () => {
     assert.strictEqual(historyUser2[0].content, 'hi user2');
   });
 
+  test('isolates cron job histories by jobId', async () => {
+    const llm = new FakeLLM('job-response');
+    const historyStore = new InMemoryHistoryStore();
+    const agent = new Agent(llm, [], { historyStore, maxHistory: 10 });
+    const baseMetadata = { userId: '@user:example', roomId: '!room:example', source: 'cron' };
+
+    await agent.processMessage('fiber reminder', { ...baseMetadata, jobId: 'reminder-1' });
+    await agent.processMessage('uuid generation', { ...baseMetadata, jobId: 'headless-1' });
+    await agent.processMessage('fiber follow-up', { ...baseMetadata, jobId: 'reminder-1' });
+
+    const reminderHistory = await historyStore.getHistory('job:reminder-1');
+    const headlessHistory = await historyStore.getHistory('job:headless-1');
+    const userHistory = await historyStore.getHistory('user:@user:example');
+
+    assert.deepStrictEqual(
+      reminderHistory.map(entry => entry.content),
+      ['fiber reminder', 'job-response', 'fiber follow-up', 'job-response']
+    );
+    assert.deepStrictEqual(
+      headlessHistory.map(entry => entry.content),
+      ['uuid generation', 'job-response']
+    );
+    assert.strictEqual(userHistory.length, 0);
+  });
+
   describe('persistence across agent instances', () => {
     let tempDir;
 

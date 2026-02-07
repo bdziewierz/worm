@@ -159,14 +159,14 @@ export class Agent {
     if (metadata.persistHistory === false) {
       return null;
     }
+    if (metadata.jobId) {
+      return `job:${metadata.jobId}`;
+    }
     if (metadata.userId) {
       return `user:${metadata.userId}`;
     }
     if (metadata.roomId) {
       return `room:${metadata.roomId}`;
-    }
-    if (metadata.jobId) {
-      return `job:${metadata.jobId}`;
     }
     if (metadata.source) {
       return `source:${metadata.source}`;
