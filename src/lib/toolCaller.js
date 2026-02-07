@@ -91,21 +91,6 @@ export class ToolCaller {
     return responseSanitiser(response?.message?.content || '');
   }
 
-  _buildToolSummary(toolCalls = []) {
-    if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
-      return '';
-    }
-
-    const lines = toolCalls.map(call => {
-      const name = call?.name || 'unknown_tool';
-      const args = call?.arguments || {};
-      const argsText = Object.keys(args).length > 0 ? JSON.stringify(args) : '{}';
-      return `- ${name} ${argsText}`;
-    });
-
-    return `\n\nTool calls:\n${lines.join('\n')}`;
-  }
-
   async run(messages, tools, context = {}) {
     const execContext = {
       userId: context?.userId ?? null,
@@ -190,8 +175,6 @@ export class ToolCaller {
     }
 
     console.log('Generating final response...');
-    const finalText = await this._requestFinalResponse(messages, toolResults);
-    const summary = this._buildToolSummary(toolCalls);
-    return summary ? `${finalText}${summary}` : finalText;
+    return this._requestFinalResponse(messages, toolResults);
   }
 }
