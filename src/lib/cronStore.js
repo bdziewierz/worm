@@ -89,12 +89,9 @@ export class CronStore {
     if (!userId) {
       return;
     }
+    await this._ensureDir();
     const filePath = this._getUserFilePath(userId);
-    try {
-      await fs.unlink(filePath);
-    } catch {
-      // File might not exist, ignore
-    }
+    await fs.rm(filePath, { force: true });
   }
 
   async listJobs(userId) {

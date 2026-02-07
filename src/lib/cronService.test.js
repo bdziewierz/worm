@@ -43,6 +43,9 @@ class RecordingDispatcher {
 
   async dispatch(job) {
     this.calls.push(job);
+    if (this.behavior.delayMs) {
+      await wait(this.behavior.delayMs);
+    }
     if (this.behavior.throw) {
       throw new Error('dispatch failed');
     }
@@ -179,6 +182,39 @@ describe('CronService', () => {
 
     const result = await service.clearJobs('@user:test');
     assert.strictEqual(result.removed, 2);
+
+    const jobs = await service.listJobs('@user:test');
+    assert.deepStrictEqual(jobs, []);
+  });
+
+  test('clearJobs cancels in-flight executions', async () => {
+    await service.shutdown();
+    store = new InMemoryStore();
+    dispatcher = new RecordingDispatcher({ delayMs: 50 });
+    service = new CronService({
+      store,
+      dispatcher,
+      minIntervalMinutes: 0.001,
+      maxJobsPerUser: 2,
+      throttleMs: 0,
+    });
+
+    await service.scheduleJob({
+      userId: '@user:test',
+      roomId: '!r',
+      command: 'linger',
+      intervalMinutes: 0.001,
+    });
+
+    await wait(80);
+
+    const result = await service.clearJobs('@user:test');
+    assert.strictEqual(result.removed, 1);
+
+    await wait(150);
+
+    const persisted = await store.getAllJobs();
+    assert.deepStrictEqual(persisted, []);
 
     const jobs = await service.listJobs('@user:test');
     assert.deepStrictEqual(jobs, []);

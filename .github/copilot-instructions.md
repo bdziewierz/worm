@@ -190,6 +190,12 @@ async execute(args) {
 }
 ```
 
+### Documentation & Comments
+
+- Every exported function, class, or method must include a standard Node.js-style docblock describing purpose, params, return type, and notable side effects.
+- Inline comments should capture important design decisions (e.g., why we mutate state before deleting files) so future maintainers understand intent, not mechanics.
+- When behavior differs from the obvious approach, add a short explanatory block comment near the relevant code path.
+
 ## Security Guidelines
 
 ### User Input

@@ -1,6 +1,6 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, stat } from 'node:fs/promises';
 import path from 'path';
 import os from 'os';
 import { CronStore } from './cronStore.js';
@@ -54,5 +54,19 @@ describe('CronStore', () => {
     const jobs = await store.getAllJobs();
     const ids = jobs.map(job => job.id).sort();
     assert.deepStrictEqual(ids, ['job-a', 'job-b']);
+  });
+
+  test('deleteAllJobs removes the persisted file', async () => {
+    const userId = '@carol:test';
+    await store.upsertJob(sampleJob({ userId }));
+    const filePath = store._getUserFilePath(userId);
+
+    await store.deleteAllJobs(userId);
+
+    const exists = await stat(filePath)
+      .then(() => true)
+      .catch(() => false);
+
+    assert.strictEqual(exists, false);
   });
 });

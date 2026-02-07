@@ -246,6 +246,7 @@ export class CronService {
     const timerKey = this._jobKey(job.userId, job.id);
     this._clearTimer(timerKey);
     if (job.status !== 'active') {
+      // Jobs cleared mid-flight hit this early exit so they don't recreate the deleted file.
       return;
     }
     const nextTs = job.nextRunAt ? Date.parse(job.nextRunAt) : null;
@@ -291,6 +292,10 @@ export class CronService {
       console.error(`Cron job ${job.id} failed: ${error.message}`);
     }
 
+    if (job.status !== 'active') {
+      return;
+    }
+
     const nowIso = toIso(Date.now());
     job.lastRunAt = nowIso;
     job.runCount += 1;
@@ -319,7 +324,12 @@ export class CronService {
       throw new Error('userId is required');
     }
     const jobs = this._getJobsForUser(userId);
+    const nowIso = toIso(Date.now());
     for (const job of jobs) {
+      // Mutating the shared job object ensures any queued/timer callbacks see the cancellation and stop.
+      job.status = 'cancelled';
+      job.nextRunAt = null;
+      job.updatedAt = nowIso;
       const key = this._jobKey(job.userId, job.id);
       this._clearTimer(key);
       this.jobs.delete(key);
