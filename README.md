@@ -70,6 +70,10 @@ GEMINI_MODEL=gemini-1.5-pro-latest
 MISTRAL_API_KEY=your_mistral_key
 MISTRAL_MODEL=mistral-large-latest
 
+# Brave Search Configuration (used by the search tool)
+BRAVE_SEARCH_API_KEY=your_brave_search_key
+# Optional: BRAVE_SEARCH_API_URL=https://api.search.brave.com/res/v1/web/search
+
 # Matrix Configuration (if CHANNEL_PROVIDER=matrix)
 MATRIX_HOMESERVER=https://matrix.org
 MATRIX_USER_ID=@your-bot:matrix.org
@@ -193,6 +197,8 @@ The assistant comes with several built-in tools:
 - **get_current_time**: Get current date and time with timezone support
 - **calculate**: Perform mathematical calculations
 - **get_weather**: Get weather information (mock - needs real API integration)
+- **search** ([src/tools/search.js](src/tools/search.js)): Brave Search-powered web lookup that returns up to 5 high-signal URLs for use with `fetch`
+- **fetch** ([src/tools/fetch.js](src/tools/fetch.js)): Read web pages via Readability + Markdown cleanup (feed it URLs from `search`)
 - **remind** ([src/tools/remind.js](src/tools/remind.js)): Schedule friendly chat reminders that run through the normal conversation pipeline (appears in-room, full history available)
 - **cron** ([src/tools/cron.js](src/tools/cron.js)): Schedule headless automation commands (no chat output; responses are logged to `memory/cron-runs.log` for auditing — override via `CRON_RUN_LOG_PATH` if needed)
 

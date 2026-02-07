@@ -1,34 +1,32 @@
-async function getWikipediaExtract(title) {
-  try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro=1&explaintext=1&titles=${encodeURIComponent(title)}`;
-    const response = await fetch(url);
+const DEFAULT_RESULT_LIMIT = 5;
+const DEFAULT_API_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search';
 
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    const pages = data.query?.pages || {};
-    const page = Object.values(pages)[0];
-
-    if (!page || page.missing) return null;
-
-    // Truncate to ~500 chars for token budget
-    const extract = page.extract || '';
-    return extract.length > 500 ? extract.substring(0, 500) + '...' : extract;
-  } catch {
-    return null;
-  }
+function mapWebResults(items = []) {
+  return items.slice(0, DEFAULT_RESULT_LIMIT).map(item => ({
+    title: item.title || item.subtype || 'Untitled result',
+    url: item.url,
+    snippet: item.description || item.snippet || '',
+    language: item.language || null,
+    familyFriendly: item.is_family_friendly ?? null,
+    source: item.profile?.name || item.meta_url?.domain || null,
+  }));
 }
 
 export const searchTool = {
   name: 'search',
   description:
-    'Search Wikipedia for factual information. Use for definitions, historical facts, people, places, concepts.',
+    'Search the public web via Brave Search and return concise result links suitable for follow-up fetches.',
   parameters: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'The search query (e.g., "Node.js", "Albert Einstein", "photosynthesis")',
+        description:
+          'Search phrase to look up on the web (e.g., "best fiber sources", "UUID RFC").',
+      },
+      count: {
+        type: 'number',
+        description: `Optional maximum number of links (default ${DEFAULT_RESULT_LIMIT}, max 10).`,
       },
     },
     required: ['query'],
@@ -36,57 +34,64 @@ export const searchTool = {
   execute: async args => {
     try {
       const { query } = args;
+      const requestedCount = Number(args.count);
+      const limit = Number.isFinite(requestedCount)
+        ? Math.max(1, Math.min(10, Math.floor(requestedCount)))
+        : DEFAULT_RESULT_LIMIT;
 
       if (!query || typeof query !== 'string') {
         return { error: 'Query is required and must be a string' };
       }
 
-      // Use Wikipedia OpenSearch API (no key required)
-      const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&format=json&search=${encodeURIComponent(query)}&limit=3`;
-      const response = await fetch(searchUrl);
-
-      if (!response.ok) {
-        return { error: 'Wikipedia search failed' };
-      }
-
-      const data = await response.json();
-      // OpenSearch returns: [query, [titles], [descriptions], [urls]]
-      const titles = data[1] || [];
-      const descriptions = data[2] || [];
-      const urls = data[3] || [];
-
-      if (titles.length === 0) {
+      const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+      if (!apiKey) {
         return {
-          query: query,
-          summary: 'No Wikipedia articles found. Try rephrasing your query.',
-          results: [],
+          error:
+            'Brave Search API key is not configured. Set BRAVE_SEARCH_API_KEY in the environment.',
         };
       }
 
-      // Get extract for the top result
-      const topTitle = titles[0];
-      const extract = await getWikipediaExtract(topTitle);
+      const endpoint = process.env.BRAVE_SEARCH_API_URL || DEFAULT_API_ENDPOINT;
+      const url = new globalThis.URL(endpoint);
+      url.searchParams.set('q', query.trim());
+      url.searchParams.set('count', String(limit));
 
-      const results = titles.slice(0, 3).map((title, i) => ({
-        title: title,
-        description: descriptions[i] || '',
-        url: urls[i] || '',
-      }));
+      const response = await fetch(url.toString(), {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Encoding': 'gzip',
+          'X-Subscription-Token': apiKey,
+        },
+      });
+
+      if (!response.ok) {
+        return { error: `Brave Search failed with status ${response.status}` };
+      }
+
+      const data = await response.json();
+      const webResults = mapWebResults(data.web?.results || []);
+
+      if (webResults.length === 0) {
+        return {
+          query,
+          results: [],
+          summary: 'No web results found. Try adjusting your query.',
+        };
+      }
+
+      const topResult = webResults[0];
+      const summary = topResult.snippet
+        ? `${topResult.title}: ${topResult.snippet}`
+        : `Top result: ${topResult.title}`;
 
       return {
-        query: query,
-        title: topTitle,
-        extract: extract || descriptions[0] || 'No extract available.',
-        url: urls[0],
-        related: results.slice(1),
-        summary: extract
-          ? `${topTitle}: ${extract} (${urls[0]})`
-          : `${topTitle}: ${descriptions[0]} (${urls[0]})`,
+        query,
+        results: webResults,
+        summary,
+        top: topResult,
       };
     } catch (error) {
-      return {
-        error: error.message,
-      };
+      return { error: error.message };
     }
   },
 };

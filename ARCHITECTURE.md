@@ -334,6 +334,8 @@ Each tool must export an object with:
 - `get_current_time` - Date/time with timezone support
 - `calculate` - Safe mathematical expression evaluation
 - `get_weather` - Mock weather tool (placeholder for real API)
+- `search` - Brave Search integration that returns top web links (requires `BRAVE_SEARCH_API_KEY`, pair with `fetch`)
+- `fetch` - Fetch a web page, extract readable Markdown (designed to consume URLs from `search`)
 - `remind` - Schedule recurring chat reminders that surface in-room with full history
 - `cron` - Schedule headless recurring commands (responses logged to `memory/cron-runs.log`)
 

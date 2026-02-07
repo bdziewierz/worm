@@ -99,7 +99,7 @@ describe('OllamaClient', () => {
       const tools = [
         {
           name: 'search',
-          description: 'Search Wikipedia',
+          description: 'Search the public web via Brave',
           parameters: {
             type: 'object',
             properties: {
@@ -114,7 +114,7 @@ describe('OllamaClient', () => {
           type: 'function',
           function: {
             name: 'search',
-            description: 'Search Wikipedia',
+            description: 'Search the public web via Brave',
             parameters: tools[0].parameters,
           },
         },
