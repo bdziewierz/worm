@@ -299,7 +299,7 @@ if (missing.length > 0) {
 - Message routing
 - Graceful shutdown
 
-### `src/agent/agent.js`
+### `src/agents/agent.js`
 
 - Conversation history management
 - LLM interaction
@@ -670,10 +670,10 @@ execute: async args => {
 
 ```javascript
 // Wrong
-import { Agent } from './agent';
+import { Agent } from './agents/agent';
 
 // Right
-import { Agent } from './agent.js';
+import { Agent } from './agents/agent.js';
 ```
 
 ❌ **Don't** process unauthorized Matrix users

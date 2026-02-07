@@ -93,6 +93,10 @@ MAX_CONTEXT_TOKENS=16000          # Total prompt budget (system + history + tool
 RESPONSE_TOKEN_BUFFER=1024        # Space reserved for model replies
 MAX_TOOL_CONTEXT_TOKENS=4000      # Budget for tool schemas per turn
 MAX_TOOLS=8                       # Semantic selection ceiling before budgeting
+
+# Reasoning strategy
+REASONING_MODE=baseline           # Options: baseline | react (defaults to baseline)
+REASONING_MAX_TURNS=3             # Max ReAct loops when REASONING_MODE=react
 ```
 
 ## Getting Matrix Access Token
@@ -165,6 +169,15 @@ WORM now enforces per-turn token budgets so you can stay within the constraints 
 - `MAX_HISTORY`: Optional limit on stored conversation turns. Leave blank to let the token budget alone decide how much history fits.
 
 These knobs are configurable per deployment so you can tailor the prompt size to a 4K local context or a 32K cloud model without touching code.
+
+## Reasoning Modes
+
+WORM now loads a reasoning plugin at startup so execution order can change without touching the main agent. Configure it with `REASONING_MODE`:
+
+- **baseline** — the existing 3-stage flow (semantic tool selection → tool execution → final response). This keeps prompts minimal and is ideal for short, single-tool answers.
+- **react** — a ReAct-style loop where the LLM alternates concise “thought” messages with single tool calls. Tool observations are fed back into the loop for up to `REASONING_MAX_TURNS` iterations before producing the final answer. This mode is better for multi-hop requests but consumes slightly more tokens.
+
+Switch modes by editing `.env` (or deployment secrets) and restart the process. Both reasoners live under `src/reasoners/`, so adding new strategies only requires dropping another module in that directory and referencing it via `REASONING_MODE`.
 
 ## Conversation History Persistence
 

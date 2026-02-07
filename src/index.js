@@ -2,7 +2,7 @@
 
 import 'dotenv/config';
 import chalk from 'chalk';
-import { Agent } from './agent/agent.js';
+import { Agent } from './agents/agent.js';
 import { getTools } from './tools/index.js';
 import { CronStore } from './lib/cronStore.js';
 import { CronService } from './lib/cronService.js';
@@ -121,6 +121,8 @@ async function main() {
     // Initialize agent with tools
     const services = {};
     const tools = getTools();
+    const reasoningMode = (process.env.REASONING_MODE || 'baseline').toLowerCase();
+    const reasoningMaxTurns = Number.parseInt(process.env.REASONING_MAX_TURNS, 10);
     const parsedMaxTools = Number.parseInt(process.env.MAX_TOOLS, 10);
     const agent = new Agent(llmDispatcher, tools, {
       maxHistory: Number.isInteger(parseInt(process.env.MAX_HISTORY, 10))
@@ -135,6 +137,8 @@ async function main() {
       responseBufferTokens: Number.parseInt(process.env.RESPONSE_TOKEN_BUFFER, 10) || 1024,
       maxToolContextTokens: Number.parseInt(process.env.MAX_TOOL_CONTEXT_TOKENS, 10) || 4000,
       maxTools: Number.isInteger(parsedMaxTools) ? parsedMaxTools : null,
+      reasoningMode,
+      maxReasoningTurns: Number.isInteger(reasoningMaxTurns) ? reasoningMaxTurns : null,
     });
     if (channelProvider === 'matrix') {
       const roomsMsg = process.env.MATRIX_ALLOWED_ROOMS

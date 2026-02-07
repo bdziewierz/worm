@@ -1,94 +1,13 @@
 import { responseSanitiser } from './responseSanitiser.js';
 import { ToolSemanticScorer } from './toolSemanticScorer.js';
 import { logLlmPayload } from './llmLogger.js';
+import { normalizeToolCalls, requestFinalResponse } from './toolCallUtils.js';
 
 export class ToolCaller {
   constructor(llmClient, options = {}) {
     this.llm = llmClient;
     this.scorer = new ToolSemanticScorer({ maxTools: options.maxTools });
     this.tokenBudget = options.tokenBudget || null;
-  }
-
-  _parseJsonObject(text) {
-    if (!text) return null;
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) return null;
-    try {
-      return JSON.parse(text.slice(start, end + 1));
-    } catch {
-      return null;
-    }
-  }
-
-  _normalizeToolCalls(toolCalls, content) {
-    let calls = Array.isArray(toolCalls) ? toolCalls : [];
-    if (calls.length === 0 && content) {
-      const parsed = this._parseJsonObject(content);
-      if (parsed && Array.isArray(parsed.tool_calls)) {
-        calls = parsed.tool_calls;
-      }
-    }
-
-    return calls
-      .map(call => {
-        const name = call?.function?.name || call?.name;
-        if (!name) return null;
-        let args = call?.function?.arguments ?? call?.arguments ?? {};
-        if (typeof args === 'string') {
-          try {
-            args = JSON.parse(args);
-          } catch {
-            args = {};
-          }
-        }
-        if (typeof args !== 'object' || args === null) {
-          args = {};
-        }
-        return { name, arguments: args };
-      })
-      .filter(Boolean);
-  }
-
-  async _requestFinalResponse(messages, toolResults) {
-    const startTime = Date.now();
-    const systemPrompt =
-      `Tool execution results: ${JSON.stringify(toolResults)}\n\n` +
-      `Task: Answer the user's question using ONLY the results above.\n` +
-      `Rules: Do NOT call any tools. Do NOT output JSON. Write a natural, conversational response.`;
-
-    const finalMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages,
-      { role: 'user', content: `Tool results: ${JSON.stringify(toolResults)}` },
-    ];
-
-    const boundedMessages = this.tokenBudget
-      ? this.tokenBudget.enforceMessageBudget(finalMessages)
-      : finalMessages;
-
-    logLlmPayload('ToolCaller Step 2', { messages: boundedMessages });
-    const response = await this.llm.chat(boundedMessages);
-    logLlmPayload('ToolCaller Step 2 Response', response);
-    const step2InputTokens =
-      typeof response?.prompt_eval_count === 'number' ? response.prompt_eval_count : null;
-    const step2OutputTokens = typeof response?.eval_count === 'number' ? response.eval_count : null;
-    const step2TotalTokens =
-      step2InputTokens !== null && step2OutputTokens !== null
-        ? step2InputTokens + step2OutputTokens
-        : null;
-    const duration = Date.now() - startTime;
-    logLlmPayload('ToolCaller Step 2 Usage', {
-      inputTokens: step2InputTokens,
-      outputTokens: step2OutputTokens,
-      totalTokens: step2TotalTokens,
-      durationMs: duration,
-    });
-    const step2InputLog = step2InputTokens ?? 0;
-    const step2OutputLog = step2OutputTokens ?? 0;
-    console.log(`Step 2: ${step2InputLog} in, ${step2OutputLog} out, ${duration}ms`);
-
-    return responseSanitiser(response?.message?.content || '');
   }
 
   async run(messages, tools, context = {}) {
@@ -133,10 +52,7 @@ export class ToolCaller {
     const step1OutputLog = step1OutputTokens ?? 0;
     console.log(`Step 1: ${step1InputLog} in, ${step1OutputLog} out, ${duration}ms`);
 
-    const toolCalls = this._normalizeToolCalls(
-      response?.message?.tool_calls,
-      response?.message?.content
-    );
+    const toolCalls = normalizeToolCalls(response?.message?.tool_calls, response?.message?.content);
 
     if (!toolCalls.length) {
       return responseSanitiser(response?.message?.content || '');
@@ -175,6 +91,11 @@ export class ToolCaller {
     }
 
     console.log('Generating final response...');
-    return this._requestFinalResponse(messages, toolResults);
+    return requestFinalResponse({
+      llm: this.llm,
+      tokenBudget: this.tokenBudget,
+      messages,
+      toolResults,
+    });
   }
 }

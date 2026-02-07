@@ -4,7 +4,7 @@ import { Memory } from '../lib/memory.js';
 import { logLlmPayload, resetLlmLog } from '../lib/llmLogger.js';
 import { TokenBudgetManager } from '../lib/tokenBudgetManager.js';
 import { HistoryStore } from '../lib/historyStore.js';
-import { createReasoner } from './reasoners/index.js';
+import { createReasoner } from '../reasoners/index.js';
 
 export class Agent {
   constructor(llmClient, tools = [], config = {}) {

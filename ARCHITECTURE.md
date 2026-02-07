@@ -43,7 +43,7 @@ The application is divided into distinct layers:
 
 - **Entry Point** (`src/index.js`) - Application initialization and orchestration
 - **Clients** (`src/clients/`) - External service integrations (Ollama, Matrix)
-- **Agent** (`src/agent/`) - Core AI logic and tool orchestration
+- **Agents** (`src/agents/`) - Core AI logic and tool orchestration
 - **Tools** (`src/tools/`) - Individual tool implementations
 
 ### 3. **Stateless Tool Execution**
@@ -132,8 +132,9 @@ The application is divided into distinct layers:
 worm/
 ├── src/
 │   ├── index.js              # Application entry point
-│   ├── agent/
+│   ├── agents/
 │   │   └── agent.js          # Agent orchestration logic
+│   ├── reasoners/            # Pluggable reasoning strategies (baseline, ReAct, ...)
 │   ├── lib/
 │   │   ├── llmDispatcher.js  # Pluggable LLM provider router
 │   │   ├── messagingDispatcher.js # Messaging provider router
@@ -157,7 +158,7 @@ worm/
 
 ## Component Architecture
 
-### 1. Agent (`src/agent/agent.js`)
+### 1. Agent (`src/agents/agent.js`)
 
 **Responsibilities:**
 
@@ -196,6 +197,14 @@ worm/
 - ToolCaller selects up to 3 tools and orchestrates tool calls internally
 - Agent receives final text response
 - System prompt is included in messages array for all stages
+
+### Reasoning Plugins (`src/reasoners/`)
+
+- Agent delegates execution to a reasoning plugin so multi-stage orchestration can evolve independently of `agent.js`.
+- `REASONING_MODE` chooses the plugin at runtime (defaults to `baseline`). Each plugin must expose a `run(messages, tools, context)` method.
+- `baseline` wraps the original 3-stage ToolCaller pipeline. `react` performs iterative “Thought → tool call → Observation” loops (capped by `REASONING_MAX_TURNS`) before requesting a final summarization pass.
+- Plugins receive shared dependencies (LLM client, ToolCaller, TokenBudgetManager, max tool count) so they can respect the same context budgets and logging rules.
+- Adding a new strategy only requires dropping another module into `src/reasoners/` and referencing it in the registry—no changes to `agent.js` or the entrypoint needed.
 
 ### 2. LLM Clients (`src/clients/llm/*.js`)
 
@@ -722,7 +731,7 @@ If integrating another service:
 
 ### Modifying Agent Behavior
 
-**System Prompt:** Edit `_buildSystemPrompt()` in `src/agent/agent.js`
+**System Prompt:** Edit `_buildSystemPrompt()` in `src/agents/agent.js`
 **Conversation History:** Adjust limit in `processMessage()`
 **Tool Calling Logic:** Modify `_handleToolCalls()`
 
